@@ -450,6 +450,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "crevice"
+version = "0.14.0"
+source = "git+https://github.com/LPGhatguy/crevice.git?rev=124b542cf81fabf560093abc7e096672d2ba8c20#124b542cf81fabf560093abc7e096672d2ba8c20"
+dependencies = [
+ "bytemuck",
+ "crevice-derive",
+ "glam",
+ "mint",
+]
+
+[[package]]
+name = "crevice-derive"
+version = "0.10.0"
+source = "git+https://github.com/LPGhatguy/crevice.git?rev=124b542cf81fabf560093abc7e096672d2ba8c20#124b542cf81fabf560093abc7e096672d2ba8c20"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "crossbeam-utils"
 version = "0.8.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -645,7 +666,9 @@ version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5418c17512bdf42730f9032c74e1ae39afc408745ebb2acf72fbc4691c17945"
 dependencies = [
+ "bytemuck",
  "libm",
+ "mint",
 ]
 
 [[package]]
@@ -996,6 +1019,12 @@ checksum = "b8a240ddb74feaf34a79a7add65a741f3167852fba007066dcac1ca548d89c08"
 dependencies = [
  "adler",
 ]
+
+[[package]]
+name = "mint"
+version = "0.5.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e53debba6bda7a793e5f99b8dacf19e626084f525f7829104ba9898f367d85ff"
 
 [[package]]
 name = "naga"
@@ -1358,7 +1387,9 @@ version = "0.1.0"
 dependencies = [
  "ahash 0.8.6",
  "bytemuck",
+ "crevice",
  "env_logger",
+ "glam",
  "log",
  "pollster",
  "shader",
@@ -1532,6 +1563,8 @@ name = "shader"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "crevice",
+ "glam",
  "spirv-std",
 ]
 

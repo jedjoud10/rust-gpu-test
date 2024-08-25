@@ -52,8 +52,6 @@ pub async fn setup(window: &Window) -> State {
         view_formats: vec![],
     };
 
-    log::debug!("Format Type: {:?}", surface_format);
-
     surface.configure(&device, &config);
 
     State {

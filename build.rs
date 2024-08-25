@@ -1,8 +1,8 @@
-use spirv_builder::{MetadataPrintout, SpirvBuilder};
+use spirv_builder::{Capability, MetadataPrintout, SpirvBuilder};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     SpirvBuilder::new("crates/shader", "spirv-unknown-vulkan1.1")
-        .print_metadata(MetadataPrintout::Full)
+        .capability(Capability::VariablePointers)
         .build()?;
     Ok(())
 }

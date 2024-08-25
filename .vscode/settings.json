@@ -5,4 +5,5 @@
         "-Z",
         "unstable-options"
     ],
+    "rust-analyzer.checkOnSave": false,
 }

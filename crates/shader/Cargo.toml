@@ -9,5 +9,10 @@ edition = "2021"
 crate-type = ["dylib"]
 
 [dependencies]
+glam = { version = "=0.24.2", default-features = false, features = ["bytemuck", "libm"] }
 spirv-std = { version = "0.9" }
+crevice = { git = "https://github.com/LPGhatguy/crevice.git", rev = "124b542cf81fabf560093abc7e096672d2ba8c20", default-features = false, features = ["glam"] }
 bytemuck = { version = "1.17.0", features = ["derive"] }
+
+[patch.crates-io]
+#glam = { version = "=0.24.2", default-features = false, features = ["bytemuck", "libm"] }
