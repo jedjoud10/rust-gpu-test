@@ -74,10 +74,12 @@ pub unsafe fn test(
         let mut face = 0u32;
         intersection_faces(pos + ray_dir * 0.01f32, -inv_dir, min, max, &mut face);
 
+        /* 
         if (f32::sin(min.x * 1.00f32) * 6.0f32 > min.y) {
-            //color = box_normal(face, -ray_dir);
+            color = box_normal(face, -ray_dir);
             break;
         }
+        */
 
         /*
         let dis = dist(pos);
