@@ -22,14 +22,14 @@ const GENERATION: &[u8] = include_bytes!(env!("generation.spv"));
 fn damn<P: AsRef<Path>>(path: P) -> Vec<u8> {
     let _raymarch = File::open(path).unwrap();
     let mut bytes = Vec::<u8>::new();
-    let raymarch = BufReader::new(_raymarch).read_to_end(&mut bytes).unwrap();
+    BufReader::new(_raymarch).read_to_end(&mut bytes).unwrap();
     bytes
 }
 
 fn main() {
-    let raymarch = damn(env!("raymarch.spv"));
-    let blit = damn(env!("blit.spv"));
-    let generation = damn(env!("generation.spv"));
+    let raymarch = damn(env!("raymarch"));
+    let blit = damn(env!("blit"));
+    let generation = damn(env!("generation"));
 
     env_logger::builder().filter(Some("wgpu_core"), log::LevelFilter::Warn).filter(Some("wgpu_hal"), log::LevelFilter::Warn).filter_level(log::LevelFilter::Debug).init();
     let event_loop = EventLoop::new().unwrap();
@@ -151,7 +151,7 @@ fn main() {
         label: Some("raymarch pipeline"),
         layout: Some(&layout),
         module: &raymarch_module,
-        entry_point: "main"
+        entry_point: "raymarch"
     });
 
     let blit_layout = state.device.create_pipeline_layout(&PipelineLayoutDescriptor {
@@ -167,7 +167,7 @@ fn main() {
         label: Some("blit pipeline"),
         layout: Some(&blit_layout),
         module: &blit_module,
-        entry_point: "main"
+        entry_point: "blit"
     });
 
     let generation_layout = state.device.create_pipeline_layout(&PipelineLayoutDescriptor {
@@ -180,7 +180,7 @@ fn main() {
         label: Some("generation pipeline"),
         layout: Some(&generation_layout),
         module: &generation_module,
-        entry_point: "main"
+        entry_point: "generation"
     });
 
     let generation_bind_group = state.device.create_bind_group(&BindGroupDescriptor {
@@ -253,7 +253,6 @@ fn main() {
                 instant = Instant::now();
 
                 let constants = RaymarchParams {
-                    //time: (Instant::now() - instant).as_secs_f32(),
                     proj_matrix: movement.proj_matrix,
                     view_matrix: movement.view_matrix,
                     position: Vec4::from((movement.position, 0f32)),

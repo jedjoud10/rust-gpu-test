@@ -12,7 +12,7 @@ pub use raymarch::*;
 use crate::intersection::*;
 
 #[spirv(compute(threads(32, 32, 1)))]
-pub unsafe fn main(
+pub unsafe fn raymarch(
     #[spirv(global_invocation_id)] id: UVec3,
     #[spirv(descriptor_set = 0, binding = 0)] image: &Image!(2D, format=rgba8_snorm, sampled=false, depth=false),
     #[spirv(descriptor_set = 0, binding = 1)] texture: &Image!(3D, format=r8ui, sampled=false, depth=false),
@@ -31,4 +31,38 @@ pub unsafe fn main(
     let output = lighting::light(output, dir);
 
     image.write(id.xy(), Vec4::from((output, 1f32)));
+}
+
+#[spirv(compute(threads(32, 32, 1)))]
+pub unsafe fn blit(
+    #[spirv(global_invocation_id)] id: UVec3,
+    #[spirv(descriptor_set = 0, binding = 0)] src: &Image!(2D, format=rgba8_snorm, sampled=false, depth=false),
+    #[spirv(descriptor_set = 0, binding = 1)] dst: &Image!(2D, format=rgba8_snorm, sampled=false, depth=false),
+    #[spirv(push_constant)] consts: &u32
+) {
+    let src_pos = id.xy() / *consts;
+    let src_val: Vec4 = src.read(src_pos);
+    dst.write(id.xy(), src_val);
+}
+
+fn indeed(pos: Vec3) -> bool {
+    let mut sum = 0f32;
+
+    for i in 1..5 {
+        let scale = f32::powf(2f32, i as f32);
+        let amplitude = f32::powf(0.5f32, i as f32);
+        sum += f32::sin((pos.x + pos.z * 1.2) * 0.40f32 * scale) * amplitude * 6f32;
+    }
+    
+    sum > pos.y
+}
+
+
+#[spirv(compute(threads(8, 8, 8)))]
+pub unsafe fn generation(
+    #[spirv(global_invocation_id)] id: UVec3,
+    #[spirv(descriptor_set = 0, binding = 0)] image: &Image!(3D, format=r8ui, sampled=false, depth=false),
+) {
+    let test = indeed(id.xyz().as_vec3());
+    image.write(id.xyz(), UVec4::from((if test { 1 } else { 0 }, 0, 0, 0)));
 }

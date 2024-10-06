@@ -17,10 +17,10 @@ pub fn intersection_faces(pos: Vec3, inv_dir: Vec3, min: Vec3, max: Vec3, face: 
         if a1 > tmin {
             tmin = a1;
         }
-
+        
         if a2 < tmax {
-            *face = d as u32;
             tmax = a2;
+            *face = d as u32;
         }
     }
 

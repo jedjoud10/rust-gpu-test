@@ -11,7 +11,6 @@ pub use bytemuck::{Pod, Zeroable};
 pub use spirv_std::float::*;
 pub use spirv_std::num_traits::*;
 pub use spirv_std::number::*;
-pub use spirv_std::num_traits::float::*;
 pub use spirv_std::num_traits::real::*;
 pub use spirv_std::Image;
 pub use spirv_std::{glam::UVec3, spirv};

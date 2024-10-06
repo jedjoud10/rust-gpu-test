@@ -26,21 +26,30 @@ pub fn raymarch(
         let max = pos.ceil();
 
         let int = intersection(pos, inv_dir, min, max);
-
-        let dist = f32::max(int.y, 0.001f32); 
+        let dist = f32::max(int.y, 0.1f32); 
         pos += ray_dir * dist;
 
-        
-        if image.read(min.abs().as_uvec3()) == 1 {
-            pos -= ray_dir * dist;
+        // ((pos + ray_dir * 0.00001).floor()
+        if image.read(pos.abs().as_uvec3()) == 1 {
+
+
+            //let int = intersection(pos, inv_dir, min, max);
+            //pos += ray_dir * int.y;
+
             let normal = Vec3::normalize(pos - min - 0.5f32);
-
-            // I haven't seen other implementations handle normals so...
-
             let mut face = 0u32;
             let shifted = pos;
             intersection_faces(shifted, -inv_dir, min, max, &mut face);
             let normal = box_normal(face, normal);
+
+            let delta = pos - min - 0.5f32;
+            let normal = if delta.x.abs() > delta.y.abs() && delta.x.abs() > delta.z.abs() {
+                vec3(<f32 as Real>::signum(delta.x), 0.0, 0.0)
+            } else if delta.y.abs() > delta.z.abs() {
+                vec3(0.0, <f32 as Real>::signum(delta.y), 0.0)
+            } else {
+                vec3(0.0, 0.0, <f32 as Real>::signum(delta.z))
+            };
             
             return RaymarchOutput {
                 position: pos,
