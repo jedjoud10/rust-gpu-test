@@ -10,21 +10,12 @@ pub struct RaymarchOutput {
     pub iteration_percent: f32,
 }
 
-fn indeed(pos: Vec3) -> bool {
-    let mut sum = 0f32;
 
-    for i in 1..5 {
-        let scale = f32::powf(2f32, i as f32);
-        let amplitude = f32::powf(0.5f32, i as f32);
-        sum += f32::sin((pos.x + pos.z * 1.2) * 0.40f32 * scale) * amplitude * 6f32;
-    }
-    
-    sum > pos.y
-}
 
 pub fn raymarch(
     ray_start: Vec3,
     ray_dir: Vec3,
+    image: &Image!(3D, format=r8ui, sampled=false, depth=false),
 ) -> RaymarchOutput {
     //let ray_dir = (ray_dir * 200f32).round() / 200f32;
     let inv_dir = ray_dir.recip();
@@ -39,9 +30,12 @@ pub fn raymarch(
         let dist = f32::max(int.y, 0.001f32); 
         pos += ray_dir * dist;
 
-        if indeed(min) {
+        
+        if image.read(min.abs().as_uvec3()) == 1 {
             pos -= ray_dir * dist;
             let normal = Vec3::normalize(pos - min - 0.5f32);
+
+            // I haven't seen other implementations handle normals so...
 
             let mut face = 0u32;
             let shifted = pos;

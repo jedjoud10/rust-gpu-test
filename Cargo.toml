@@ -29,6 +29,7 @@ spirv-builder = "0.9"
 members = [
     "crates/blit",
     "crates/raymarch",
+    "crates/generation",
     "crates/shared"
 ]
 
