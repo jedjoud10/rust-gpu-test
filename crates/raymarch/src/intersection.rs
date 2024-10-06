@@ -1,13 +1,7 @@
-use glam::vec3;
 #[allow(unused_imports)]
 #[cfg_attr(target_arch = "spirv", no_std)]
 
-use glam::{vec2, Vec2, Vec3};
-use spirv_std::float::*;
-use spirv_std::num_traits::*;
-use spirv_std::number::*;
-use spirv_std::num_traits::float::*;
-use spirv_std::num_traits::real::*;
+use shared::*;
 
 
 pub fn intersection_faces(pos: Vec3, inv_dir: Vec3, min: Vec3, max: Vec3, face: &mut u32) -> Vec2 {

@@ -1,0 +1,21 @@
+[package]
+name = "blit"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["dylib"]
+
+[dependencies]
+shared = { path = "../shared" }
+
+#glam = { workspace = true }
+#spirv-std = { workspace = true }
+#crevice = { workspace = true }
+#bytemuck = { workspace = true }
+#glam = { version = "=0.24.2", default-features = false, features = ["bytemuck", "libm"] }
+#spirv-std = { version = "0.9" }
+#crevice = { git = "https://github.com/LPGhatguy/crevice.git", rev = "124b542cf81fabf560093abc7e096672d2ba8c20", default-features = false, features = ["glam"] }
+#bytemuck = { version = "1.17.0", features = ["derive"] }

@@ -10,13 +10,30 @@ pollster = "0.3.0"
 ahash = "=0.8.6"
 env_logger = "0.11.0"
 log = "0.4.22"
-bytemuck = "1.17.0"
-shader = { path = "crates/shader" }
-crevice = { git = "https://github.com/LPGhatguy/crevice.git", rev = "124b542cf81fabf560093abc7e096672d2ba8c20", default-features = false, features = ["glam"] }
-glam = "=0.24.2"
+#bytemuck = "1.17.0"
+#blit = { path = "crates/blit" }
+#raymarch = { path = "crates/raymarch" }
+shared = { path = "crates/shared" }
+#crevice = { git = "https://github.com/LPGhatguy/crevice.git", rev = "124b542cf81fabf560093abc7e096672d2ba8c20", default-features = false, features = ["glam"] }
+#glam = "=0.24.2"
+
+#glam = { version = "=0.24.2", default-features = false, features = ["bytemuck", "libm"] }
+#spirv-std = { version = "0.9" }
+#crevice = { git = "https://github.com/LPGhatguy/crevice.git", rev = "124b542cf81fabf560093abc7e096672d2ba8c20", default-features = false, features = ["glam"] }
+#bytemuck = { version = "1.17.0", features = ["derive"] }
 
 [build-dependencies]
 spirv-builder = "0.9"
 
 [workspace]
-members = ["crates/shader"]
+members = [
+    "crates/blit",
+    "crates/raymarch",
+    "crates/shared"
+]
+
+[profile.release.build-override]
+opt-level = 3
+codegen-units = 16
+[profile.dev.build-override]
+opt-level = 3

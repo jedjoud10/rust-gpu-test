@@ -9,6 +9,7 @@ pub struct State {
     pub device: Device,
     pub queue: Queue,
     pub config: SurfaceConfiguration,
+    pub format: TextureFormat,
 }
 
 pub async fn setup(window: &Window) -> State {
@@ -26,7 +27,7 @@ pub async fn setup(window: &Window) -> State {
 
     let (device, queue) = adapter.request_device(
         &DeviceDescriptor {
-            features: Features::default() | Features::SPIRV_SHADER_PASSTHROUGH | Features::PUSH_CONSTANTS | Features::PUSH_CONSTANTS,
+            features: Features::default() | Features::SPIRV_SHADER_PASSTHROUGH | Features::PUSH_CONSTANTS | Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
             limits: wgpu::Limits {
                 max_push_constant_size: 128,
                 ..Default::default()
@@ -61,5 +62,6 @@ pub async fn setup(window: &Window) -> State {
         device,
         queue,
         config,
+        format: surface_format
     }
 }

@@ -1,10 +1,4 @@
-use glam::Vec3;
-use spirv_std::float::*;
-use spirv_std::num_traits::*;
-use spirv_std::number::*;
-use spirv_std::num_traits::float::*;
-use spirv_std::num_traits::real::*;
-
+use shared::*;
 
 use crate::{box_normal, intersection, intersection_faces};
 
@@ -20,7 +14,7 @@ fn indeed(pos: Vec3) -> bool {
     for i in 1..5 {
         let scale = f32::powf(2f32, i as f32);
         let amplitude = f32::powf(0.5f32, i as f32);
-        sum += f32::sin(pos.x * 0.70f32 * scale) * amplitude * 6f32;
+        sum += f32::sin((pos.x + pos.z * 1.2) * 0.40f32 * scale) * amplitude * 6f32;
     }
     
     sum > pos.y

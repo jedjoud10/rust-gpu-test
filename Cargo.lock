@@ -245,6 +245,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b048fb63fd8b5923fc5aa7b340d8e156aec7ec02f0c78fa8a6ddc2613f6f71de"
 
 [[package]]
+name = "blit"
+version = "0.1.0"
+dependencies = [
+ "shared",
+]
+
+[[package]]
 name = "block"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1309,6 +1316,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "20675572f6f24e9e76ef639bc5552774ed45f1c30e2951e1e99c59888861c539"
 
 [[package]]
+name = "raymarch"
+version = "0.1.0"
+dependencies = [
+ "shared",
+]
+
+[[package]]
 name = "redox_syscall"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1386,13 +1400,10 @@ name = "rust-gpu-test"
 version = "0.1.0"
 dependencies = [
  "ahash 0.8.6",
- "bytemuck",
- "crevice",
  "env_logger",
- "glam",
  "log",
  "pollster",
- "shader",
+ "shared",
  "spirv-builder",
  "wgpu",
  "winit",
@@ -1559,7 +1570,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "shader"
+name = "shared"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
