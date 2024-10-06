@@ -1,4 +1,4 @@
-use spirv_builder::{Capability, MetadataPrintout, SpirvBuilder};
+use spirv_builder::{Capability, SpirvBuilder};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     SpirvBuilder::new("crates/raymarch", "spirv-unknown-vulkan1.1")

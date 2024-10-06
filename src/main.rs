@@ -74,7 +74,7 @@ fn main() {
         ],
     });
 
-    let size_reduction = 4;
+    let size_reduction = 2;
 
     let mut src_output = state.device.create_texture(&TextureDescriptor {
         label: Some("output raymarch texture"),

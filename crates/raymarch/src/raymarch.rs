@@ -6,6 +6,8 @@ pub struct RaymarchOutput {
     pub position: Vec3,
     pub normal: Vec3,
     pub hit: bool,
+    pub last_dist: f32,
+    pub iteration_percent: f32,
 }
 
 fn indeed(pos: Vec3) -> bool {
@@ -24,44 +26,43 @@ pub fn raymarch(
     ray_start: Vec3,
     ray_dir: Vec3,
 ) -> RaymarchOutput {
+    //let ray_dir = (ray_dir * 200f32).round() / 200f32;
     let inv_dir = ray_dir.recip();
     let mut pos = ray_start + ray_dir * 0.2f32;
 
-    for x in 0..64 {
-        let min = (pos * 1f32).floor();
-        let max = (pos * 1f32).ceil();
+    for x in 0..256  {
+        let min = pos.floor();
+        let max = pos.ceil();
 
         let int = intersection(pos, inv_dir, min, max);
-        let dist = f32::max(int.y, 0.001f32);
+
+        let dist = f32::max(int.y, 0.001f32); 
         pos += ray_dir * dist;
 
-        let mut face = 0u32;
-        intersection_faces(pos + ray_dir * 0.01f32, -inv_dir, min, max, &mut face);
-
         if indeed(min) {
-            let normal = box_normal(face, -ray_dir);
+            pos -= ray_dir * dist;
+            let normal = Vec3::normalize(pos - min - 0.5f32);
+
+            let mut face = 0u32;
+            let shifted = pos;
+            intersection_faces(shifted, -inv_dir, min, max, &mut face);
+            let normal = box_normal(face, normal);
+            
             return RaymarchOutput {
                 position: pos,
                 normal,
+                last_dist: int.y,
                 hit: true,
+                iteration_percent: x as f32 / 256.0f32
             };
         }
-
-        /*
-        let dis = dist(pos);
-        pos += ray_dir * dis;
-
-        if dis < 0.001 {
-            //color = pos;
-            break;
-        }
-        */
-
     }
 
     return RaymarchOutput {
         position: Vec3::ZERO,
         normal: Vec3::ZERO,
+        last_dist: 0f32,
+        iteration_percent: 0f32,
         hit: false,
     };
 }
