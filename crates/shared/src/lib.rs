@@ -4,6 +4,7 @@ pub use glam;
 pub use spirv_std;
 pub use crevice;
 pub use bytemuck;
+pub mod noise;
 
 use crevice::std430::AsStd430;
 pub use glam::*;

@@ -28,9 +28,16 @@ pub unsafe fn raymarch(
     let dir = constants.view_matrix.inverse().mul_vec4(_dir).xyz().normalize();
 
     let output = raymarch::raymarch(constants.position.xyz(), dir, texture);
-    let output = lighting::light(output, dir);
+    let output = lighting::light(output);
 
     image.write(id.xy(), Vec4::from((output, 1f32)));
+}
+
+#[spirv(compute(threads(32, 32, 1)))]
+pub unsafe fn lighting(
+    #[spirv(global_invocation_id)] id: UVec3,
+    #[spirv(descriptor_set = 0, binding = 0)] positions: &Image!(2D, format=rgba8_snorm, sampled=false, depth=false),
+) {
 }
 
 #[spirv(compute(threads(32, 32, 1)))]
@@ -46,15 +53,23 @@ pub unsafe fn blit(
 }
 
 fn indeed(pos: Vec3) -> bool {
-    let mut sum = 0f32;
-
+    let mut sum = pos.y - 10f32;
+    sum += noise::hash13(pos) * 2f32;
+    sum += f32::sin(pos.x * 0.5) * 8f32;
+    
+    
+    //sum += <f32 as Real>::powf(pos.x * 0.1, 3f32);
+    //sum += f32::sin((pos.x + pos.z * 1.2) * 0.40f32) * 6f32;
+    //sum += noise::hash13(pos * 0.1) * 2.0;
+    /*
     for i in 1..5 {
         let scale = f32::powf(2f32, i as f32);
         let amplitude = f32::powf(0.5f32, i as f32);
-        sum += f32::sin((pos.x + pos.z * 1.2) * 0.40f32 * scale) * amplitude * 6f32;
+        sum += ;
     }
+    */
     
-    sum > pos.y
+    sum < 0f32
 }
 
 
@@ -63,6 +78,6 @@ pub unsafe fn generation(
     #[spirv(global_invocation_id)] id: UVec3,
     #[spirv(descriptor_set = 0, binding = 0)] image: &Image!(3D, format=r8ui, sampled=false, depth=false),
 ) {
-    let test = indeed(id.xyz().as_vec3());
-    image.write(id.xyz(), UVec4::from((if test { 1 } else { 0 }, 0, 0, 0)));
+    let value = if indeed(id.xyz().as_vec3()) { 1u32 } else { 0 };
+    image.write(id.xyz(), UVec4::from((value as u32, 0, 0, 0)));
 }

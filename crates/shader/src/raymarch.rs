@@ -2,70 +2,70 @@ use shared::*;
 
 use crate::{box_normal, intersection, intersection_faces};
 
+#[derive(Default)]
 pub struct RaymarchOutput {
     pub position: Vec3,
-    pub normal: Vec3,
+    pub test: Vec3,
+    pub local_pos: Vec3,
+    pub block_pos: Vec3,
+    pub ray_dir: Vec3,
+    pub neighbors_bitwise: u32,
+
+    // Couldn't figure out a way to not make this shit. TODO: FIX!!!
+    //pub normal: Vec3,
+
     pub hit: bool,
     pub last_dist: f32,
     pub iteration_percent: f32,
 }
 
-
-
 pub fn raymarch(
     ray_start: Vec3,
-    ray_dir: Vec3,
+    mut ray_dir: Vec3,
     image: &Image!(3D, format=r8ui, sampled=false, depth=false),
 ) -> RaymarchOutput {
-    //let ray_dir = (ray_dir * 200f32).round() / 200f32;
-    let inv_dir = ray_dir.recip();
+    let mut inv_dir = ray_dir.recip();
     let mut pos = ray_start + ray_dir * 0.2f32;
 
     for x in 0..256  {
         let min = pos.floor();
         let max = pos.ceil();
-
         let int = intersection(pos, inv_dir, min, max);
-        let dist = f32::max(int.y, 0.1f32); 
+        let dist = f32::max(int.y, 0.001f32); 
         pos += ray_dir * dist;
 
-        // ((pos + ray_dir * 0.00001).floor()
-        if image.read(pos.abs().as_uvec3()) == 1 {
+        /*
+        if pos.x < 2.0 {
+            let reflected = ray_dir - 2f32 * (ray_dir.dot(Vec3::X)) * Vec3::X;
+            ray_dir = reflected;
+            inv_dir = ray_dir.recip();
+        }
+        */
 
+        if image.read(min.abs().as_uvec3()) == 1 {
+            pos -= ray_dir * dist;
 
-            //let int = intersection(pos, inv_dir, min, max);
-            //pos += ray_dir * int.y;
+            let nx = image.read(min.abs().as_uvec3() + uvec3(1, 0, 0)) as u32;
+            let ny = (image.read(min.abs().as_uvec3() + uvec3(0, 1, 0)) as u32) << 1;
+            let nz = (image.read(min.abs().as_uvec3() + uvec3(0, 0, 1)) as u32) << 2;
+            let nnx = (image.read(min.abs().as_uvec3() - uvec3(1, 0, 0)) as u32) << 3;
+            let nny = (image.read(min.abs().as_uvec3() - uvec3(0, 1, 0)) as u32) << 4;
+            let nnz = (image.read(min.abs().as_uvec3() - uvec3(0, 0, 1)) as u32) << 5;
+            let combined = nx | ny | nz | nnx | nny | nnz;
 
-            let normal = Vec3::normalize(pos - min - 0.5f32);
-            let mut face = 0u32;
-            let shifted = pos;
-            intersection_faces(shifted, -inv_dir, min, max, &mut face);
-            let normal = box_normal(face, normal);
-
-            let delta = pos - min - 0.5f32;
-            let normal = if delta.x.abs() > delta.y.abs() && delta.x.abs() > delta.z.abs() {
-                vec3(<f32 as Real>::signum(delta.x), 0.0, 0.0)
-            } else if delta.y.abs() > delta.z.abs() {
-                vec3(0.0, <f32 as Real>::signum(delta.y), 0.0)
-            } else {
-                vec3(0.0, 0.0, <f32 as Real>::signum(delta.z))
-            };
-            
             return RaymarchOutput {
+                local_pos: pos.rem_euclid(Vec3::ONE),
+                block_pos: min,
+                test: Vec3::ZERO,
                 position: pos,
-                normal,
                 last_dist: int.y,
                 hit: true,
-                iteration_percent: x as f32 / 256.0f32
+                neighbors_bitwise: combined,
+                iteration_percent: x as f32 / 256.0f32,
+                ray_dir,
             };
         }
     }
 
-    return RaymarchOutput {
-        position: Vec3::ZERO,
-        normal: Vec3::ZERO,
-        last_dist: 0f32,
-        iteration_percent: 0f32,
-        hit: false,
-    };
+    return RaymarchOutput::default();
 }
