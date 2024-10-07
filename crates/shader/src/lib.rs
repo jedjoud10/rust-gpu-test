@@ -7,8 +7,10 @@ use shared::*;
 mod intersection;
 mod raymarch;
 mod lighting;
+mod voxel;
 pub use intersection::*;
 pub use raymarch::*;
+use voxel::Voxel;
 use crate::intersection::*;
 
 #[spirv(compute(threads(32, 32, 1)))]
@@ -30,6 +32,7 @@ pub unsafe fn raymarch(
     let raymarch = raymarch::raymarch(constants.position.xyz(), dir, texture);
     
     let reflections = raymarch.reflections;
+    let refraction = raymarch.refraction_tint;
     let mut output = if raymarch.hit {
         lighting::light(raymarch)
     } else {
@@ -37,14 +40,8 @@ pub unsafe fn raymarch(
     };
 
     output /= f32::powf(2f32, f32::max(reflections as f32 - 1.0, 0.0));
+    output *= refraction;
     image.write(id.xy(), Vec4::from((output, 1f32)));
-}
-
-#[spirv(compute(threads(32, 32, 1)))]
-pub unsafe fn lighting(
-    #[spirv(global_invocation_id)] id: UVec3,
-    #[spirv(descriptor_set = 0, binding = 0)] positions: &Image!(2D, format=rgba8_snorm, sampled=false, depth=false),
-) {
 }
 
 #[spirv(compute(threads(32, 32, 1)))]
@@ -59,34 +56,20 @@ pub unsafe fn blit(
     dst.write(id.xy(), src_val);
 }
 
-struct Voxel {
-    active: bool,
-    reflective: bool,
-}
-
 fn indeed(pos: Vec3) -> Voxel {
-    let mut sum = pos.y - 10f32;
-    sum += rng::hash13(pos) * 2f32;
-    sum += f32::sin(pos.x * 0.1) * 2f32;
+    let mut sum = pos.y - 40f32;
+    //sum += rng::hash13(pos) * 2f32;
+    //sum += f32::sin(pos.x * 0.1) * 2f32;
+    sum += noise::fbm_simplex_2d(pos.xz() * 0.02, 3, 0.5, 2.0) * 2.8;
+    
+    if rng::hash12(pos.xz()) * 60.0 > pos.y && rng::hash12(pos.xz() * 0.54) > 0.95 {
+        sum -= 30.0;
+    }
 
-    if pos.x >= 32.0 {
-        //sum -= 1000.0;
-    }
-    
-    //sum += <f32 as Real>::powf(pos.x * 0.1, 3f32);
-    //sum += f32::sin((pos.x + pos.z * 1.2) * 0.40f32) * 6f32;
-    //sum += noise::hash13(pos * 0.1) * 2.0;
-    /*
-    for i in 1..5 {
-        let scale = f32::powf(2f32, i as f32);
-        let amplitude = f32::powf(0.5f32, i as f32);
-        sum += ;
-    }
-    */
-    
     Voxel {
         active: sum < 0f32,
-        reflective: pos.x >= 32.0,
+        reflective: rng::hash13(pos) > 0.95,
+        refractive: rng::hash13(pos * 0.5849) > 0.95,
     }
 }
 
@@ -99,7 +82,8 @@ pub unsafe fn generation(
     let voxel = indeed(id.xyz().as_vec3());
     let active = voxel.active as u32;
     let reflective = (voxel.reflective as u32) << 1;
-    let bitmask = active | reflective;
+    let refractive = (voxel.refractive as u32) << 2;
+    let bitmask = active | reflective | refractive;
 
     image.write(id.xyz(), UVec4::from((bitmask, 0, 0, 0)));
 }

@@ -1,6 +1,16 @@
 use shared::*;
 use crate::RaymarchOutput;
 
+//https://github.com/dmnsgn/glsl-tone-map/blob/main/aces.glsl
+fn aces(x: Vec3) -> Vec3 {
+    const a: f32 = 2.51;
+    const b: f32 = 0.03;
+    const c: f32 = 2.43;
+    const d: f32 = 0.59;
+    const e: f32 = 0.14;
+    return Vec3::clamp((x * (a * x + b)) / (x * (c * x + d) + e), Vec3::ZERO, Vec3::ONE);
+}
+
 pub fn light(input: RaymarchOutput) -> Vec3 {
     //return input.position / 10.0f32;
     //return input.iteration_percent * Vec3::ONE;
@@ -15,7 +25,7 @@ pub fn light(input: RaymarchOutput) -> Vec3 {
     diffuse += (rng::hash13(input.block_pos) * 0.2 + 0.8) * (rng::hash13(local + input.block_pos) * 0.2 + 0.8) * vec3(45.0, 46.0, 45.0) / 255.0;
     
     // Shade everything and combine em
-    let mut color = input.normal.dot(sun).max(0.0) * diffuse * 2.0;
+    let mut color = input.normal.dot(sun).max(0.0) * diffuse * 2.2;
     color += sky(input.position, input.normal) * 0.5 * diffuse;
     color
 }
@@ -33,9 +43,9 @@ pub fn sky(pos: Vec3, dir: Vec3) -> Vec3 {
     let dist = plane(Vec3::Y * 200.0 - pos, dir, Vec3::Y);
     if dist > 0.0 {
         let pos = pos + dist * dir;
-        let val = noise::fbm_simplex_2d(pos.xz().div_euclid(Vec2::ONE * 16.0) * 0.03, 2, 0.5, 1.8).max(0.0);
+        let val = noise::fbm_simplex_2d(pos.xz().div_euclid(Vec2::ONE * 16.0) * 0.03, 2, 0.5, 1.8).max(0.0) * 0.6;
         main = main.lerp(Vec3::ONE, val);
     }
     
-    main
+    main.clamp(Vec3::ZERO, Vec3::ONE)
 }

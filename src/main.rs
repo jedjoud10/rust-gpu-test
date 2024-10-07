@@ -110,7 +110,7 @@ fn main() {
 
     let mut voxels = state.device.create_texture(&TextureDescriptor {
         label: Some("voxel texture"),
-        size: Extent3d { width: 64, height: 64, depth_or_array_layers: 64 },
+        size: Extent3d { width: 64*2, height: 64*2, depth_or_array_layers: 64*2 },
         mip_level_count: 1,
         sample_count: 1,
         dimension: TextureDimension::D3,
@@ -197,13 +197,13 @@ fn main() {
     let mut _compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor::default());
     _compute_pass.set_pipeline(&generation_pipeline);
     _compute_pass.set_bind_group(0, &generation_bind_group, &[]);
-    _compute_pass.dispatch_workgroups(16, 16, 16);
+    _compute_pass.dispatch_workgroups(32, 32, 32);
     drop(_compute_pass);
     state.queue.submit([encoder.finish()]);
     
     let mut instant = Instant::now();
     let mut movement = Movement::default();
-    movement.position.y = 10f32;
+    movement.position.y = 60f32;
 
     let mut input = Input::default();
     window.set_cursor_grab(winit::window::CursorGrabMode::Confined).unwrap();
