@@ -54,8 +54,8 @@ pub unsafe fn blit(
 
 fn indeed(pos: Vec3) -> bool {
     let mut sum = pos.y - 10f32;
-    sum += noise::hash13(pos) * 2f32;
-    sum += f32::sin(pos.x * 0.5) * 8f32;
+    //sum += noise::hash13(pos) * 2f32;
+    sum += f32::sin(pos.x * 0.1) * 2f32;
     
     
     //sum += <f32 as Real>::powf(pos.x * 0.1, 3f32);

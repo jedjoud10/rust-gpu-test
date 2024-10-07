@@ -34,14 +34,13 @@ pub fn raymarch(
         let dist = f32::max(int.y, 0.001f32); 
         pos += ray_dir * dist;
 
-        /*
-        if pos.x < 2.0 {
+        
+        if pos.x < -8.0 {
             let reflected = ray_dir - 2f32 * (ray_dir.dot(Vec3::X)) * Vec3::X;
-            ray_dir = reflected;
+            ray_dir = reflected + (noise::hash33(pos * vec3(42.594, 12.435, 65.945)) - 0.5) * 0.1;
             inv_dir = ray_dir.recip();
         }
-        */
-
+        
         if image.read(min.abs().as_uvec3()) == 1 {
             pos -= ray_dir * dist;
 
