@@ -52,11 +52,19 @@ pub unsafe fn blit(
     dst.write(id.xy(), src_val);
 }
 
-fn indeed(pos: Vec3) -> bool {
+struct Voxel {
+    active: bool,
+    reflective: bool,
+}
+
+fn indeed(pos: Vec3) -> Voxel {
     let mut sum = pos.y - 10f32;
-    //sum += noise::hash13(pos) * 2f32;
+    sum += noise::hash13(pos) * 2f32;
     sum += f32::sin(pos.x * 0.1) * 2f32;
-    
+
+    if pos.x >= 32.0 {
+        //sum -= 1000.0;
+    }
     
     //sum += <f32 as Real>::powf(pos.x * 0.1, 3f32);
     //sum += f32::sin((pos.x + pos.z * 1.2) * 0.40f32) * 6f32;
@@ -69,7 +77,10 @@ fn indeed(pos: Vec3) -> bool {
     }
     */
     
-    sum < 0f32
+    Voxel {
+        active: sum < 0f32,
+        reflective: pos.x >= 32.0,
+    }
 }
 
 
@@ -78,6 +89,10 @@ pub unsafe fn generation(
     #[spirv(global_invocation_id)] id: UVec3,
     #[spirv(descriptor_set = 0, binding = 0)] image: &Image!(3D, format=r8ui, sampled=false, depth=false),
 ) {
-    let value = if indeed(id.xyz().as_vec3()) { 1u32 } else { 0 };
-    image.write(id.xyz(), UVec4::from((value as u32, 0, 0, 0)));
+    let voxel = indeed(id.xyz().as_vec3());
+    let active = voxel.active as u32;
+    let reflective = (voxel.reflective as u32) << 1;
+    let bitmask = active | reflective;
+
+    image.write(id.xyz(), UVec4::from((bitmask, 0, 0, 0)));
 }

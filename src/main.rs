@@ -106,7 +106,7 @@ fn main() {
         }],
     });
 
-    let size_reduction = 4;
+    let size_reduction = 2;
 
     let mut voxels = state.device.create_texture(&TextureDescriptor {
         label: Some("voxel texture"),
