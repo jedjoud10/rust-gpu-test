@@ -8,9 +8,12 @@ pub struct RaymarchOutput {
     pub local_pos: Vec3,
     pub block_pos: Vec3,
     pub ray_dir: Vec3,
+    pub ray_start: Vec3,
     pub neighbors_bitwise: u32,
+    pub spherical_normal: Vec3,
     pub normal: Vec3,
     pub hit: bool,
+    pub reflections: u32,
     pub iteration_percent: f32,
 }
 
@@ -26,6 +29,7 @@ pub fn raymarch(
     let mut inv_dir = ray_dir.recip();
     let mut side_dist = (pos - ray_start + 0.5 + 0.5 * sign) * inv_dir; 
     let mut face = 0;
+    let mut reflections = 0;
 
     for x in 0..256  {
         // Voxel bitmask shenanigans
@@ -44,9 +48,9 @@ pub fn raymarch(
 
             // Hehehehe reflections!!!
             let mut should_continue = false;
-            if reflective {
+            if reflective && reflections < 8 {
                 let reflected = ray_dir - 2f32 * (ray_dir.dot(normal)) * normal;
-                ray_dir = reflected + (noise::hash33(world * vec3(42.594, 12.435, 65.945)) - 0.5) * 0f32;
+                ray_dir = reflected + (rng::hash33(world * vec3(42.594, 12.435, 65.945)) - 0.5) * 0.4f32;
                 ray_dir = ray_dir.normalize();
                 sign = ray_dir.signum();
                 inv_dir = ray_dir.recip();
@@ -57,6 +61,7 @@ pub fn raymarch(
                 starting_bozo = copy;
                 side_dist = (pos - copy + 0.5 + 0.5 * sign) * inv_dir; 
                 should_continue = true;
+                reflections += 1;
             }
 
             // Actual end case where we output the voxel values
@@ -73,7 +78,10 @@ pub fn raymarch(
                 return RaymarchOutput {
                     local_pos: local,
                     block_pos: pos.floor(),
+                    ray_start: starting_bozo,
                     normal,
+                    spherical_normal: (local - pos.floor()).normalize(), 
+                    reflections,
                     position: world,
                     hit: true,
                     neighbors_bitwise: combined,
@@ -101,6 +109,8 @@ pub fn raymarch(
 
     return RaymarchOutput {
         ray_dir,
+        ray_start: starting_bozo,
+        reflections,
         ..Default::default()    
     }
 }

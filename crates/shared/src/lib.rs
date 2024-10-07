@@ -4,6 +4,7 @@ pub use glam;
 pub use spirv_std;
 pub use crevice;
 pub use bytemuck;
+pub mod rng;
 pub mod noise;
 
 use crevice::std430::AsStd430;
@@ -23,4 +24,11 @@ pub struct RaymarchParams {
     pub position: glam::Vec4,
     pub width: f32,
     pub height: f32,
+
+}
+
+#[cfg_attr(not(target_arch = "spirv"), derive(AsStd430))]
+pub struct LightingParams {
+    pub light_dir: glam::Vec4,
+    pub ambient_boost: f32,
 }

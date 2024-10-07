@@ -27,9 +27,16 @@ pub unsafe fn raymarch(
     _dir.w = 0f32;
     let dir = constants.view_matrix.inverse().mul_vec4(_dir).xyz().normalize();
 
-    let output = raymarch::raymarch(constants.position.xyz(), dir, texture);
-    let output = lighting::light(output);
+    let raymarch = raymarch::raymarch(constants.position.xyz(), dir, texture);
+    
+    let reflections = raymarch.reflections;
+    let mut output = if raymarch.hit {
+        lighting::light(raymarch)
+    } else {
+        lighting::sky(raymarch.ray_start, raymarch.ray_dir)
+    };
 
+    output /= f32::powf(2f32, f32::max(reflections as f32 - 1.0, 0.0));
     image.write(id.xy(), Vec4::from((output, 1f32)));
 }
 
@@ -59,7 +66,7 @@ struct Voxel {
 
 fn indeed(pos: Vec3) -> Voxel {
     let mut sum = pos.y - 10f32;
-    sum += noise::hash13(pos) * 2f32;
+    sum += rng::hash13(pos) * 2f32;
     sum += f32::sin(pos.x * 0.1) * 2f32;
 
     if pos.x >= 32.0 {
