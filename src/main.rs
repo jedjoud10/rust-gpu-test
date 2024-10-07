@@ -106,33 +106,15 @@ fn main() {
         }],
     });
 
-    let size_reduction = 2;
+    let size_reduction = 1;
 
-    let mut voxels = state.device.create_texture(&TextureDescriptor {
-        label: Some("voxel texture"),
-        size: Extent3d { width: 64*2, height: 64*2, depth_or_array_layers: 64*2 },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: TextureDimension::D3,
-        format: TextureFormat::R8Uint,
-        usage: TextureUsages::STORAGE_BINDING,
-        view_formats: &[] }
-    );
+    let voxels = create_voxel_texture(&state);
 
     let voxel_view = voxels.create_view(&TextureViewDescriptor {
         ..Default::default()
     });
 
-    let mut src_output = state.device.create_texture(&TextureDescriptor {
-        label: Some("output raymarch texture"),
-        size: Extent3d { width: state.config.width / size_reduction, height: state.config.height / size_reduction, depth_or_array_layers: 1 },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: TextureDimension::D2,
-        format: TextureFormat::Rgba8Unorm,
-        usage: TextureUsages::STORAGE_BINDING,
-        view_formats: &[] }
-    );
+    let mut src_output = create_src_output_texture(&state, size_reduction);
     
     let buffer = state.device.create_buffer(&BufferDescriptor {
         label: Some("raymarch uniform buffer"),
@@ -216,17 +198,7 @@ fn main() {
                 state.config.width = new_size.width;
                 state.config.height = new_size.height;
                 state.surface.configure(&state.device, &state.config);
-
-                src_output = state.device.create_texture(&TextureDescriptor {
-                    label: Some("output raymarch texture"),
-                    size: Extent3d { width: state.config.width / size_reduction, height: state.config.height / size_reduction, depth_or_array_layers: 1 },
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    dimension: TextureDimension::D2,
-                    format: TextureFormat::Rgba8Unorm,
-                    usage: TextureUsages::STORAGE_BINDING,
-                    view_formats: &[] }
-                );
+                src_output = create_src_output_texture(&state, size_reduction);
             },
 
             Event::WindowEvent { event: WindowEvent::RedrawRequested, .. } => {
@@ -247,6 +219,14 @@ fn main() {
                         window.set_fullscreen(None);
                     }
                 }
+
+
+                let mut voxel_encoder = state.device.create_command_encoder(&Default::default());
+                let mut _compute_pass = voxel_encoder.begin_compute_pass(&wgpu::ComputePassDescriptor::default());
+                _compute_pass.set_pipeline(&generation_pipeline);
+                _compute_pass.set_bind_group(0, &generation_bind_group, &[]);
+                _compute_pass.dispatch_workgroups(32, 32, 32);
+                drop(_compute_pass);
 
                 let delta = (Instant::now() - instant).as_secs_f32();
                 movement.update(&input, window.inner_size().width as f32 / window.inner_size().height as f32, delta);
@@ -329,7 +309,7 @@ fn main() {
 
                 drop(_compute_pass);
                 
-                queue.submit([encoder.finish()]);
+                queue.submit([voxel_encoder.finish(), encoder.finish()]);
 
                 
                 surface_texture.present();
@@ -348,4 +328,30 @@ fn main() {
             _ => (),
         }
     }).unwrap();
+}
+
+fn create_src_output_texture(state: &State, size_reduction: u32) -> wgpu::Texture {
+    state.device.create_texture(&TextureDescriptor {
+        label: Some("output raymarch texture"),
+        size: Extent3d { width: state.config.width / size_reduction, height: state.config.height / size_reduction, depth_or_array_layers: 1 },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: TextureDimension::D2,
+        format: TextureFormat::Rgba8Unorm,
+        usage: TextureUsages::STORAGE_BINDING,
+        view_formats: &[] }
+    )
+}
+
+fn create_voxel_texture(state: &State) -> wgpu::Texture {
+    state.device.create_texture(&TextureDescriptor {
+        label: Some("voxel texture"),
+        size: Extent3d { width: 64*2, height: 64*2, depth_or_array_layers: 64*2 },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: TextureDimension::D3,
+        format: TextureFormat::R8Uint,
+        usage: TextureUsages::STORAGE_BINDING,
+        view_formats: &[] }
+    )
 }

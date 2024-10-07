@@ -39,7 +39,7 @@ impl Movement {
 
 
         self.boost += input.get_axis(Axis::Mouse(MouseAxis::ScrollDelta));
-        self.boost = self.boost.clamp(0.0, 20.0);
+        self.boost = self.boost.clamp(0.0, 5.0);
         let sens = 1.0f32;
         let summed_mouse = (input.get_axis(Axis::Mouse(MouseAxis::PositionX)), input.get_axis(Axis::Mouse(MouseAxis::PositionY)));
         self.rotation = Quat::from_axis_angle(Vec3::Y, summed_mouse.0 * -0.003 * sens) * Quat::from_axis_angle(Vec3::X, summed_mouse.1 * 0.003 * sens);
