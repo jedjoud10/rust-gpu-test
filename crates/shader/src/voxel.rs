@@ -9,7 +9,7 @@ pub struct Voxel {
 
 fn remap(pos: Vec3) -> UVec3 {
     let y = pos.y.max(0.0) as u32;
-    let mut temp = pos.floor().rem_euclid(Vec3::ONE * 128.0).as_uvec3();
+    let mut temp = pos.floor().rem_euclid(Vec3::ONE * CHUNK_SIZE as f32).as_uvec3();
     temp.y = y;
     temp
 }

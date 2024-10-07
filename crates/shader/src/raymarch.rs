@@ -105,7 +105,8 @@ pub fn raymarch_internal(
                 //   when other rays are done (and their rays, and their rays)
                 //   take the average lighting values
                 //   average out their values eventually
-                let normal_offset = (rng::hash33(world * vec3(42.594, 12.435, 65.945)) - 0.5) * 0.0f32;
+                //let normal_offset = (rng::hash33(world * vec3(42.594, 12.435, 65.945)) - 0.5) * 0.0f32;
+                let normal_offset = noise::simplex_noise_3d(world * 3.5) * Vec3::ONE * 0.2;
 
                 if voxel.reflective && reflections < 8 {
                     let reflected = reflect(ray_dir, normal);

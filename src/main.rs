@@ -106,8 +106,6 @@ fn main() {
         }],
     });
 
-    let size_reduction = 1;
-
     let voxels = create_voxel_texture(&state);
 
     let voxel_view = voxels.create_view(&TextureViewDescriptor {
@@ -116,7 +114,7 @@ fn main() {
         ..Default::default()
     });
 
-    let mut src_output = create_src_output_texture(&state, size_reduction);
+    let mut src_output = create_src_output_texture(&state);
     
     let buffer = state.device.create_buffer(&BufferDescriptor {
         label: Some("raymarch uniform buffer"),
@@ -141,10 +139,7 @@ fn main() {
     let blit_layout = state.device.create_pipeline_layout(&PipelineLayoutDescriptor {
         label: Some("blit pipeline layout"),
         bind_group_layouts: &[&bind_group_layout_blit],
-        push_constant_ranges: &[PushConstantRange {
-            stages: ShaderStages::COMPUTE,
-            range: 0..size_of::<u32>() as u32,
-        }],
+        push_constant_ranges: &[],
     });
 
     let blit_pipeline = state.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
@@ -180,13 +175,13 @@ fn main() {
     });
 
     
-    let mut encoder = state.device.create_command_encoder(&Default::default());
-    let mut _compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor::default());
+    let mut _encoder = state.device.create_command_encoder(&Default::default());
+    let mut _compute_pass = _encoder.begin_compute_pass(&wgpu::ComputePassDescriptor::default());
     _compute_pass.set_pipeline(&generation_pipeline);
     _compute_pass.set_bind_group(0, &generation_bind_group, &[]);
-    _compute_pass.dispatch_workgroups(32, 32, 32);
+    _compute_pass.dispatch_workgroups(CHUNK_SIZE / 8, CHUNK_SIZE / 8, CHUNK_SIZE / 8);
     drop(_compute_pass);
-    state.queue.submit([encoder.finish()]);
+    state.queue.submit([_encoder.finish()]);
     
     let mut instant = Instant::now();
     let mut movement = Movement::default();
@@ -204,7 +199,7 @@ fn main() {
                 state.config.width = new_size.width;
                 state.config.height = new_size.height;
                 state.surface.configure(&state.device, &state.config);
-                src_output = create_src_output_texture(&state, size_reduction);
+                src_output = create_src_output_texture(&state);
             },
 
             Event::WindowEvent { event: WindowEvent::RedrawRequested, .. } => {
@@ -230,6 +225,7 @@ fn main() {
                     control_flow.exit();
                 }
 
+                /*
                 let constants = GenerationParams {
                     time: (Instant::now() - start).as_secs_f32(),
                 };
@@ -240,12 +236,12 @@ fn main() {
                 _compute_pass.set_pipeline(&generation_pipeline);
                 _compute_pass.set_bind_group(0, &generation_bind_group, &[]);
                 _compute_pass.set_push_constants(0, raw);
-                _compute_pass.dispatch_workgroups(32, 32, 32);
-
-
-                
-                
+                _compute_pass.dispatch_workgroups(CHUNK_SIZE / 8, CHUNK_SIZE / 8, CHUNK_SIZE / 8);
                 drop(_compute_pass);
+                */
+
+                
+                
 
                 let delta = (Instant::now() - instant).as_secs_f32();
                 movement.update(&input, window.inner_size().width as f32 / window.inner_size().height as f32, delta);
@@ -255,8 +251,8 @@ fn main() {
                     proj_matrix: movement.proj_matrix,
                     view_matrix: movement.view_matrix,
                     position: Vec4::from((movement.position, 0f32)),
-                    width: (window.inner_size().width / size_reduction) as f32,
-                    height: (window.inner_size().height / size_reduction) as f32,
+                    width: (window.inner_size().width / SIZE_REDUCTION) as f32,
+                    height: (window.inner_size().height / SIZE_REDUCTION) as f32,
                 };
 
                 let data = constants.as_std430();
@@ -315,20 +311,19 @@ fn main() {
                 _compute_pass.set_pipeline(&pipeline);
                 _compute_pass.set_bind_group(0, &bind_group, &[]);
 
-                let x = window.inner_size().width.div_ceil(32 * size_reduction);
-                let y = window.inner_size().height.div_ceil(32 * size_reduction);
+                let x = window.inner_size().width.div_ceil(32 * SIZE_REDUCTION);
+                let y = window.inner_size().height.div_ceil(32 * SIZE_REDUCTION);
                 _compute_pass.dispatch_workgroups(x, y, 1);
 
                 _compute_pass.set_pipeline(&blit_pipeline);
                 _compute_pass.set_bind_group(0, &bind_group_blit, &[]);
-                _compute_pass.set_push_constants(0, bytemuck::bytes_of(&size_reduction));
                 let x = window.inner_size().width.div_ceil(32);
                 let y = window.inner_size().height.div_ceil(32);
                 _compute_pass.dispatch_workgroups(x, y, 1);
 
                 drop(_compute_pass);
                 
-                queue.submit([voxel_encoder.finish(), encoder.finish()]);
+                queue.submit([/*voxel_encoder.finish(), */encoder.finish()]);
 
                 
                 surface_texture.present();
@@ -349,10 +344,10 @@ fn main() {
     }).unwrap();
 }
 
-fn create_src_output_texture(state: &State, size_reduction: u32) -> wgpu::Texture {
+fn create_src_output_texture(state: &State) -> wgpu::Texture {
     state.device.create_texture(&TextureDescriptor {
         label: Some("output raymarch texture"),
-        size: Extent3d { width: state.config.width / size_reduction, height: state.config.height / size_reduction, depth_or_array_layers: 1 },
+        size: Extent3d { width: state.config.width / SIZE_REDUCTION, height: state.config.height / SIZE_REDUCTION, depth_or_array_layers: 1 },
         mip_level_count: 1,
         sample_count: 1,
         dimension: TextureDimension::D2,
