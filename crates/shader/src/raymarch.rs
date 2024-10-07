@@ -1,5 +1,5 @@
 use shared::*;
-use crate::{box_normal, intersection, voxel, lighting};
+use crate::{voxel, lighting};
 
 #[spirv(compute(threads(32, 32, 1)))]
 pub unsafe fn raymarch(
@@ -17,23 +17,15 @@ pub unsafe fn raymarch(
     _dir.w = 0f32;
     let dir = constants.view_matrix.inverse().mul_vec4(_dir).xyz().normalize();
 
-    let raymarch = raymarch_internal(constants.position.xyz(), dir, texture);
+    let (raymarch, mut lighting) = raymarch_internal(constants.position.xyz(), dir, texture);
     
-    let reflections = raymarch.reflections;
-    let refraction = raymarch.refraction_tint;
-    let mut output = if raymarch.hit {
-        lighting::light(raymarch)
-    } else {
-        lighting::sky(raymarch.ray_start, raymarch.ray_dir)
-    };
-
-    output /= f32::powf(2f32, f32::max(reflections as f32 - 1.0, 0.0));
-    output *= refraction;
-    image.write(id.xy(), Vec4::from((output, 1f32)));
+    lighting /= f32::powf(2f32, f32::max(raymarch.reflections as f32 - 1.0, 0.0));
+    lighting *= raymarch.refraction_tint;
+    image.write(id.xy(), Vec4::from((lighting, 1f32)));
 }
 
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 pub struct RaymarchOutput {
     pub position: Vec3,
     pub local_pos: Vec3,
@@ -47,6 +39,12 @@ pub struct RaymarchOutput {
     pub reflections: u32,
     pub refraction_tint: Vec3,
     pub iteration_percent: f32,
+}
+
+fn box_normal(side: u32, ray_dir: Vec3) -> Vec3 {
+    let sign = ray_dir.signum();
+    let sides = [vec3(sign.x, 0.0, 0.0), vec3(0.0, sign.y, 0.0), vec3(0.0, 0.0, sign.z)];
+    sides[side as usize]
 }
 
 // gpted from glsl def
@@ -74,7 +72,7 @@ pub fn raymarch_internal(
     ray_start: Vec3,
     mut ray_dir: Vec3,
     image: &Image!(3D, format=r8ui, sampled=false, depth=false),
-) -> RaymarchOutput {
+) -> (RaymarchOutput, Vec3) {
     let mut starting_bozo = ray_start;
     let mut pos = ray_start.floor();
     let mut sign = ray_dir.signum();
@@ -99,12 +97,22 @@ pub fn raymarch_internal(
 
             // Case where we modify teh ray direction
             if voxel.reflective || voxel.refractive {
+                // if normal offset isnt zero then we must sample multiple rays
+                // if reflection:
+                //   initiate multiple rays with different ray dirs
+                //   halt the current ray stuff (store the temp data somewhere)
+                //   initiate the other rays
+                //   when other rays are done (and their rays, and their rays)
+                //   take the average lighting values
+                //   average out their values eventually
+                let normal_offset = (rng::hash33(world * vec3(42.594, 12.435, 65.945)) - 0.5) * 0.0f32;
+
                 if voxel.reflective && reflections < 8 {
                     let reflected = reflect(ray_dir, normal);
-                    ray_dir = reflected + (rng::hash33(world * vec3(42.594, 12.435, 65.945)) - 0.5) * 0.0f32;
+                    ray_dir = reflected + normal_offset;
                     reflections += 1;
                 } else if voxel.refractive {
-                    ray_dir = refract((world - starting_bozo).normalize(), -normal, 1.0 / 1.5);
+                    ray_dir = refract((world - starting_bozo).normalize(), -normal + normal_offset, 1.0 / 1.5);
                     refraction_tint *= rng::hash33(pos.floor());
                 } 
 
@@ -123,7 +131,8 @@ pub fn raymarch_internal(
             // Actual end case where we output the voxel values
             if !should_continue {
                 let combined = voxel::get_neighbor_active(image, pos);
-                return RaymarchOutput {
+
+                let raymarched = RaymarchOutput {
                     local_pos: local,
                     block_pos: pos.floor(),
                     ray_start: starting_bozo,
@@ -137,6 +146,8 @@ pub fn raymarch_internal(
                     iteration_percent: x as f32 / 256.0f32,
                     ray_dir,
                 };
+
+                return (raymarched, lighting::light(raymarched));
             }
         }
 
@@ -156,11 +167,13 @@ pub fn raymarch_internal(
         }
     }
 
-    return RaymarchOutput {
+    let raymarched = RaymarchOutput {
         ray_dir,
         ray_start: starting_bozo,
         reflections,
         refraction_tint,
         ..Default::default()    
-    }
+    };
+
+    return (raymarched, lighting::sky(raymarched));
 }

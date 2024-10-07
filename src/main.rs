@@ -27,9 +27,9 @@ fn damn<P: AsRef<Path>>(path: P) -> Vec<u8> {
 }
 
 fn main() {
-    let raymarch = damn(env!("raymarch"));
-    let blit = damn(env!("blit"));
-    let generation = damn(env!("generation"));
+    let raymarch = damn(env!("raymarch::raymarch"));
+    let blit = damn(env!("blit::blit"));
+    let generation = damn(env!("voxel::generation"));
 
     env_logger::builder().filter(Some("wgpu_core"), log::LevelFilter::Warn).filter(Some("wgpu_hal"), log::LevelFilter::Warn).filter_level(log::LevelFilter::Debug).init();
     let event_loop = EventLoop::new().unwrap();
@@ -111,6 +111,8 @@ fn main() {
     let voxels = create_voxel_texture(&state);
 
     let voxel_view = voxels.create_view(&TextureViewDescriptor {
+        base_mip_level: 0,
+        mip_level_count: NonZeroU32::new(1),
         ..Default::default()
     });
 
@@ -133,7 +135,7 @@ fn main() {
         label: Some("raymarch pipeline"),
         layout: Some(&layout),
         module: &raymarch_module,
-        entry_point: "raymarch"
+        entry_point: "raymarch::raymarch"
     });
 
     let blit_layout = state.device.create_pipeline_layout(&PipelineLayoutDescriptor {
@@ -149,20 +151,23 @@ fn main() {
         label: Some("blit pipeline"),
         layout: Some(&blit_layout),
         module: &blit_module,
-        entry_point: "blit"
+        entry_point: "blit::blit"
     });
 
     let generation_layout = state.device.create_pipeline_layout(&PipelineLayoutDescriptor {
         label: Some("generation pipeline layout"),
         bind_group_layouts: &[&bind_group_layout_generation],
-        push_constant_ranges: &[],
+        push_constant_ranges: &[PushConstantRange {
+            stages: ShaderStages::COMPUTE,
+            range: 0..size_of::<GenerationParams>() as u32,
+        }],
     });
 
     let generation_pipeline = state.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
         label: Some("generation pipeline"),
         layout: Some(&generation_layout),
         module: &generation_module,
-        entry_point: "generation"
+        entry_point: "voxel::generation"
     });
 
     let generation_bind_group = state.device.create_bind_group(&BindGroupDescriptor {
@@ -191,6 +196,7 @@ fn main() {
     window.set_cursor_grab(winit::window::CursorGrabMode::Confined).unwrap();
     window.set_cursor_visible(false);
 
+    let start = Instant::now();
     event_loop.run(move |event, control_flow| {
         match event {
             Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => control_flow.exit(),
@@ -220,12 +226,25 @@ fn main() {
                     }
                 }
 
+                if input.get_button(KeyCode::Escape).pressed() {
+                    control_flow.exit();
+                }
 
+                let constants = GenerationParams {
+                    time: (Instant::now() - start).as_secs_f32(),
+                };
+                let data = constants.as_std430();
+                let raw = bytemuck::bytes_of(&data);
                 let mut voxel_encoder = state.device.create_command_encoder(&Default::default());
                 let mut _compute_pass = voxel_encoder.begin_compute_pass(&wgpu::ComputePassDescriptor::default());
                 _compute_pass.set_pipeline(&generation_pipeline);
                 _compute_pass.set_bind_group(0, &generation_bind_group, &[]);
+                _compute_pass.set_push_constants(0, raw);
                 _compute_pass.dispatch_workgroups(32, 32, 32);
+
+
+                
+                
                 drop(_compute_pass);
 
                 let delta = (Instant::now() - instant).as_secs_f32();
@@ -344,10 +363,12 @@ fn create_src_output_texture(state: &State, size_reduction: u32) -> wgpu::Textur
 }
 
 fn create_voxel_texture(state: &State) -> wgpu::Texture {
+    const SIZE: u32 = 128;
+
     state.device.create_texture(&TextureDescriptor {
         label: Some("voxel texture"),
-        size: Extent3d { width: 64*2, height: 64*2, depth_or_array_layers: 64*2 },
-        mip_level_count: 1,
+        size: Extent3d { width: SIZE, height: SIZE, depth_or_array_layers: SIZE },
+        mip_level_count: SIZE.trailing_zeros() + 1,
         sample_count: 1,
         dimension: TextureDimension::D3,
         format: TextureFormat::R8Uint,

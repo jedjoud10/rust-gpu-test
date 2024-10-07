@@ -14,6 +14,8 @@ fn aces(x: Vec3) -> Vec3 {
 pub fn light(input: RaymarchOutput) -> Vec3 {
     //return input.position / 10.0f32;
     //return input.iteration_percent * Vec3::ONE;
+
+    // we shift the local pos slightly inwards so that we avoid floating point precision errors 
     let local = (input.local_pos - input.spherical_normal * 0.01f32).div_euclid(Vec3::ONE / 8.0);
     let sun = vec3(-1.0, -1.0, -1.0).normalize();
 
@@ -26,7 +28,11 @@ pub fn light(input: RaymarchOutput) -> Vec3 {
     
     // Shade everything and combine em
     let mut color = input.normal.dot(sun).max(0.0) * diffuse * 2.2;
-    color += sky(input.position, input.normal) * 0.5 * diffuse;
+    color += sky(RaymarchOutput {
+        ray_dir: input.normal,
+        ray_start: input.position,
+        ..Default::default()
+    }) * 0.5 * diffuse;
     color
 }
 
@@ -35,7 +41,10 @@ pub fn plane(origin: Vec3, ray: Vec3, normal: Vec3) -> f32 {
     origin.dot(normal) / (normal.dot(ray))
 }
 
-pub fn sky(pos: Vec3, dir: Vec3) -> Vec3 {
+pub fn sky(input: RaymarchOutput) -> Vec3 {
+    let pos = input.ray_start;
+    let dir = input.ray_dir;
+    
     let col1 = vec3(155.0, 217.0, 242.0) / 255.0;
     let col2 = vec3(0.0, 39.0, 117.0) / 255.0;
     let mut main = Vec3::lerp(col1, col2, dir.y.max(0.0));
