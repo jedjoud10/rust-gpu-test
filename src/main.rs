@@ -311,8 +311,8 @@ fn main() {
                 _compute_pass.set_pipeline(&pipeline);
                 _compute_pass.set_bind_group(0, &bind_group, &[]);
 
-                let x = window.inner_size().width.div_ceil(32 * SIZE_REDUCTION);
-                let y = window.inner_size().height.div_ceil(32 * SIZE_REDUCTION);
+                let x = window.inner_size().width.div_ceil(8 * SIZE_REDUCTION);
+                let y = window.inner_size().height.div_ceil(8 * SIZE_REDUCTION);
                 _compute_pass.dispatch_workgroups(x, y, 1);
 
                 _compute_pass.set_pipeline(&blit_pipeline);

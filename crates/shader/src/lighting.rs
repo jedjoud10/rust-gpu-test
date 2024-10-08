@@ -12,24 +12,35 @@ fn aces(x: Vec3) -> Vec3 {
 }
 
 pub fn light(input: RaymarchOutput) -> Vec3 {
+    //return input.normal;
     //return input.position / 10.0f32;
     //return input.iteration_percent * Vec3::ONE;
 
-    // we shift the local pos slightly inwards so that we avoid floating point precision errors 
-    let sun = vec3(-1.0, -1.0, -1.0).normalize();
+    // This should be a parameter but wtv
+    let sun = vec3(1.0, 1.0, 1.0).normalize();
 
-    // Calculate simple diffuse color
-    let mut diffuse = Vec3::ZERO;
-    // (input.local_pos.xz() - 0.5).abs().cmplt(Vec2::ONE * 0.95).all() 
-    if input.neighbors_bitwise & 2 == 0 && input.local_pixelated.y >= 7.0 {
-        diffuse += vec3(6.0, 43.0, 5.0) / 255.0;
-    }
-    diffuse += (rng::hash13(input.block_pos) * 0.2 + 0.8) * (rng::hash13(input.local_pixelated + input.block_pos) * 0.2 + 0.8) * vec3(45.0, 46.0, 45.0) / 255.0;
+    // Rng numbers for each block and pixel within the block
+    let block_rng = rng::hash13(input.block_pos * vec3(15.321, 121.21, 332.5));
+    let block_texel_rng = rng::hash13((input.local_pixelated + input.block_pos * 8.0) * vec3(32.321, 12.321, 53.23));
+    
+    // Randomize the normal a bit
+    let mut normal = input.normal + (block_texel_rng - 0.5) * 0.1;
+    normal = normal.normalize();
+
+    // Calculate simple diffuse color (either green or gray)
+    let mut diffuse = if input.neighbors_bitwise & 2 == 0 && input.local_pixelated.y >= 7.0 {
+        vec3(51.0, 89.0, 50.0) / 255.0
+    } else {
+        vec3(45.0, 46.0, 45.0) / 255.0
+    };
+
+    // Vary the colors a bit
+    diffuse *= (block_rng * 0.2 + 0.8) * (block_texel_rng * 0.2 + 0.8);
     
     // Shade everything and combine em
-    let mut color = input.normal.dot(sun).max(0.0) * diffuse * 2.2;
+    let mut color = normal.dot(sun).max(0.0) * diffuse * 2.2;
     color += sky(RaymarchOutput {
-        ray_dir: input.normal,
+        ray_dir: normal,
         ray_start: input.position,
         ..Default::default()
     }) * 0.5 * diffuse;
@@ -52,8 +63,8 @@ pub fn sky(input: RaymarchOutput) -> Vec3 {
     let dist = plane(Vec3::Y * 200.0 - pos, dir, Vec3::Y);
     if dist > 0.0 {
         let pos = pos + dist * dir;
-        let val = noise::fbm_simplex_2d(pos.xz().div_euclid(Vec2::ONE * 16.0) * 0.03, 2, 0.5, 1.8).max(0.0) * 0.6;
-        main = main.lerp(Vec3::ONE, val);
+        //let val = noise::fbm_simplex_2d(pos.xz().div_euclid(Vec2::ONE * 16.0) * 0.03, 2, 0.5, 1.8).max(0.0) * 0.6;
+        //main = main.lerp(Vec3::ONE, val);
     }
     
     main.clamp(Vec3::ZERO, Vec3::ONE)

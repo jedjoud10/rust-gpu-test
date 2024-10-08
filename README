@@ -17,3 +17,13 @@ Features of this implementation:
 * Reflections like the old one
 * Tinted refractions (with max refraction amount)
 * Proper normals with no flickering due to better DDA algorithm
+
+Features that I'd like to implement:
+* Voxel Octree using mip-levels
+* Sparse textures maybe if we switch to Vulkan? 
+* BVH like in the OpenGL version
+* Infinite chunk generation
+* Celullar automata type of update (falling blocks, maybe some lighting effects?)
+* Voxel Ambient Occlusion or SSAO
+* Bloom, depth of field, tonemapping, PBR rendering, light shafts, volumetric lighting
+* Voxel Global Illumination 

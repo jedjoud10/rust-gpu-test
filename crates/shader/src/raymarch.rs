@@ -1,7 +1,7 @@
 use shared::*;
-use crate::{voxel, lighting};
+use crate::{lighting::{self, light}, voxel};
 
-#[spirv(compute(threads(32, 32, 1)))]
+#[spirv(compute(threads(8, 8, 1)))]
 pub unsafe fn raymarch(
     #[spirv(global_invocation_id)] id: UVec3,
     #[spirv(descriptor_set = 0, binding = 0)] image: &Image!(2D, format=rgba8_snorm, sampled=false, depth=false),
@@ -21,6 +21,7 @@ pub unsafe fn raymarch(
     
     lighting /= f32::powf(2f32, f32::max(raymarch.reflections as f32 - 1.0, 0.0));
     lighting *= raymarch.refraction_tint;
+    //lighting = Vec3::lerp(lighting, Vec3::ONE, (raymarch.fog_sum * 0.01).clamp(0.0, 1.0));
     image.write(id.xy(), Vec4::from((lighting, 1f32)));
 }
 
@@ -40,6 +41,7 @@ pub struct RaymarchOutput {
     pub reflections: u32,
     pub refraction_tint: Vec3,
     pub iteration_percent: f32,
+    pub fog_sum: f32,
 }
 
 fn box_normal(side: u32, ray_dir: Vec3) -> Vec3 {
@@ -87,6 +89,7 @@ pub fn raymarch_internal(
     let mut reflections = 1;
     let mut refractions = 1;
     let mut refraction_tint = Vec3::ONE;
+    let mut fog_sum = 0.0f32;
 
     for x in 0..STEPS  {
         // Voxel bitmask shenanigans
@@ -98,10 +101,14 @@ pub fn raymarch_internal(
             let max = test.max_element();
             let world = starting_bozo + ray_dir * max;
             let local_unshifted = world - pos;
-            let spherical_normal = (local_unshifted - pos.floor() - 0.5).normalize();
+
+            // we shift the local pos slightly inwards so that we avoid floating point precision errors 
+            let spherical_normal = (local_unshifted - 0.5).normalize();
             let local = local_unshifted - spherical_normal * 0.01f32;
+
             let local_pixelated = local.div_euclid(Vec3::ONE / 8.0);
-            let normal = box_normal(face, ray_dir);
+            let normal = -box_normal(face, ray_dir);
+            //let normal = spherical_normal;
             let mut should_continue = false;
 
             // Case where we modify teh ray direction
@@ -114,15 +121,15 @@ pub fn raymarch_internal(
                 //   when other rays are done (and their rays, and their rays)
                 //   take the average lighting values
                 //   average out their values eventually
-                let normal_offset = (rng::hash33(world * vec3(42.594, 12.435, 65.945)) - 0.5) * 0.0f32;
-                //let normal_offset = noise::simplex_noise_3d(world * 3.5) * Vec3::ONE * 0.2;
+                //let normal_offset = (rng::hash33(world * vec3(42.594, 12.435, 65.945)) - 0.5) * 0.0f32;
+                let normal_offset = Vec3::ZERO;
 
                 if voxel.reflective && reflections < MAX_REFLECTIONS {
                     let reflected = reflect(ray_dir, normal);
                     ray_dir = reflected + normal_offset;
                     reflections += 1;
                 } else if voxel.refractive && refractions < MAX_REFRACTIONS {
-                    ray_dir = refract((world - starting_bozo).normalize(), -normal + normal_offset, 1.0 / 1.5);
+                    ray_dir = refract((world - starting_bozo).normalize(), normal + normal_offset, 1.4 / 1.5);
                     refraction_tint *= rng::hash33(pos.floor());
                     refractions += 1;
                 } 
@@ -157,6 +164,7 @@ pub fn raymarch_internal(
                     ray_dir,
                     local,
                     local_pixelated,
+                    fog_sum,
                 };
 
                 return (raymarched, lighting::light(raymarched));
@@ -184,6 +192,7 @@ pub fn raymarch_internal(
         ray_start: starting_bozo,
         reflections,
         refraction_tint,
+        fog_sum,
         ..Default::default()    
     };
 
