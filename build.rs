@@ -18,17 +18,23 @@ fn rerun_directory<T: AsRef<Path> + ?Sized>(dir: &T) {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed=crates");
-    SpirvBuilder::new("crates/shader", "spirv-unknown-vulkan1.1")
+    SpirvBuilder::new("crates/shader", "spirv-unknown-vulkan1.2")
         .capability(Capability::VariablePointers)
+        //.capability(Capability::AtomicStorage)
+        .capability(Capability::StorageImageArrayNonUniformIndexing)
+        .capability(Capability::StorageImageArrayDynamicIndexing)
         .print_metadata(spirv_builder::MetadataPrintout::None)
         .capability(Capability::StorageImageExtendedFormats)
         .multimodule(true)
+        .release(false)
+        .extension("SPV_EXT_debug_info")
         .build().unwrap()
         .module
         .unwrap_multi()
         .iter()
         .for_each(|(entry, path)| {
             println!("cargo:rustc-env={entry}={}", path.to_str().unwrap());
+            println!("cargo:warning={}", format!("{entry}={}", path.to_str().unwrap()))
         });
 
     /*

@@ -16,15 +16,15 @@ pub fn light(input: RaymarchOutput) -> Vec3 {
     //return input.iteration_percent * Vec3::ONE;
 
     // we shift the local pos slightly inwards so that we avoid floating point precision errors 
-    let local = (input.local_pos - input.spherical_normal * 0.01f32).div_euclid(Vec3::ONE / 8.0);
     let sun = vec3(-1.0, -1.0, -1.0).normalize();
 
     // Calculate simple diffuse color
     let mut diffuse = Vec3::ZERO;
-    if input.neighbors_bitwise & 2 == 0 && input.local_pos.y > 0.95 && (input.local_pos.xz() - 0.5).abs().cmplt(Vec2::ONE * 0.95).all() {
+    // (input.local_pos.xz() - 0.5).abs().cmplt(Vec2::ONE * 0.95).all() 
+    if input.neighbors_bitwise & 2 == 0 && input.local_pixelated.y >= 7.0 {
         diffuse += vec3(6.0, 43.0, 5.0) / 255.0;
     }
-    diffuse += (rng::hash13(input.block_pos) * 0.2 + 0.8) * (rng::hash13(local + input.block_pos) * 0.2 + 0.8) * vec3(45.0, 46.0, 45.0) / 255.0;
+    diffuse += (rng::hash13(input.block_pos) * 0.2 + 0.8) * (rng::hash13(input.local_pixelated + input.block_pos) * 0.2 + 0.8) * vec3(45.0, 46.0, 45.0) / 255.0;
     
     // Shade everything and combine em
     let mut color = input.normal.dot(sun).max(0.0) * diffuse * 2.2;

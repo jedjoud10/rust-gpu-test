@@ -17,7 +17,7 @@ pub use spirv_std::num_traits::real::*;
 pub use spirv_std::Image;
 pub use spirv_std::{glam::UVec3, spirv};
 
-pub const CHUNK_SIZE: u32 = 64;
+pub const CHUNK_SIZE: u32 = 128;
 pub const SIZE_REDUCTION: u32 = 1;
 
 #[cfg_attr(not(target_arch = "spirv"), derive(AsStd430))]
@@ -27,7 +27,6 @@ pub struct RaymarchParams {
     pub position: glam::Vec4,
     pub width: f32,
     pub height: f32,
-
 }
 
 #[cfg_attr(not(target_arch = "spirv"), derive(AsStd430))]

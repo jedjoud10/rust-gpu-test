@@ -49,7 +49,7 @@ fn indeed(params: &GenerationParams, pos: Vec3) -> Voxel {
 
     sum += noise::fbm_simplex_2d(pos.xz() * 0.02, 3, 0.5, 2.0) * 2.8;
     
-    if rng::hash12(pos.xz()) * 60.0 > pos.y && rng::hash12(pos.xz() * 0.54) > 0.95 {
+    if rng::hash12(pos.xz()) * 70.0 > pos.y && rng::hash12(pos.xz() * 0.54) > 0.98 {
         sum -= 30.0;
     }
 
