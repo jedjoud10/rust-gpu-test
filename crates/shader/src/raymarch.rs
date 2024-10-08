@@ -17,8 +17,14 @@ pub unsafe fn raymarch(
     _dir.w = 0f32;
     let dir = constants.view_matrix.inverse().mul_vec4(_dir).xyz().normalize();
 
-    let (raymarch, mut lighting) = raymarch_internal(constants.position.xyz(), dir, texture);
+    let raymarch = raymarch_internal(constants.position.xyz(), dir, texture);
     
+    let mut lighting = if raymarch.hit {
+        lighting::light(raymarch)
+    } else {
+        lighting::sky(raymarch)
+    };
+
     lighting /= f32::powf(2f32, f32::max(raymarch.reflections as f32 - 1.0, 0.0));
     lighting *= raymarch.refraction_tint;
     //lighting = Vec3::lerp(lighting, Vec3::ONE, (raymarch.fog_sum * 0.01).clamp(0.0, 1.0));
@@ -41,7 +47,6 @@ pub struct RaymarchOutput {
     pub reflections: u32,
     pub refraction_tint: Vec3,
     pub iteration_percent: f32,
-    pub fog_sum: f32,
 }
 
 fn box_normal(side: u32, ray_dir: Vec3) -> Vec3 {
@@ -79,7 +84,7 @@ pub fn raymarch_internal(
     ray_start: Vec3,
     mut ray_dir: Vec3,
     image: &Image!(3D, format=r8ui, sampled=false, depth=false),
-) -> (RaymarchOutput, Vec3) {
+) -> RaymarchOutput {
     let mut starting_bozo = ray_start;
     let mut pos = ray_start.floor();
     let mut sign = ray_dir.signum();
@@ -89,7 +94,6 @@ pub fn raymarch_internal(
     let mut reflections = 1;
     let mut refractions = 1;
     let mut refraction_tint = Vec3::ONE;
-    let mut fog_sum = 0.0f32;
 
     for x in 0..STEPS  {
         // Voxel bitmask shenanigans
@@ -108,7 +112,6 @@ pub fn raymarch_internal(
 
             let local_pixelated = local.div_euclid(Vec3::ONE / 8.0);
             let normal = -box_normal(face, ray_dir);
-            //let normal = spherical_normal;
             let mut should_continue = false;
 
             // Case where we modify teh ray direction
@@ -148,9 +151,10 @@ pub fn raymarch_internal(
 
             // Actual end case where we output the voxel values
             if !should_continue {
-                let combined = voxel::get_neighbor_active(image, pos);
+                //let combined = voxel::get_neighbor_active(image, pos);
+                let combined = u32::MAX;
 
-                let raymarched = RaymarchOutput {
+                return RaymarchOutput {
                     block_pos: pos.floor(),
                     ray_start: starting_bozo,
                     normal,
@@ -164,10 +168,7 @@ pub fn raymarch_internal(
                     ray_dir,
                     local,
                     local_pixelated,
-                    fog_sum,
                 };
-
-                return (raymarched, lighting::light(raymarched));
             }
         }
 
@@ -187,14 +188,11 @@ pub fn raymarch_internal(
         }
     }
 
-    let raymarched = RaymarchOutput {
+    RaymarchOutput {
         ray_dir,
         ray_start: starting_bozo,
         reflections,
         refraction_tint,
-        fog_sum,
         ..Default::default()    
-    };
-
-    return (raymarched, lighting::sky(raymarched));
+    }
 }

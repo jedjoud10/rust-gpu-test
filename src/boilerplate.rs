@@ -1,5 +1,5 @@
 
-use wgpu::{Adapter, Backends, CompositeAlphaMode, Device, DeviceDescriptor, Features, Instance, PowerPreference, PresentMode, Queue, RequestAdapterOptions, Surface, SurfaceConfiguration, Texture, TextureFormat, TextureUsages};
+use wgpu::{Adapter, Backends, BindGroupLayout, CompositeAlphaMode, ComputePipeline, Device, DeviceDescriptor, Features, Instance, PowerPreference, PresentMode, Queue, RequestAdapterOptions, Surface, SurfaceConfiguration, Texture, TextureFormat, TextureUsages};
 use winit::window::Window;
 
 pub struct State {

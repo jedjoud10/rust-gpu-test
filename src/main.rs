@@ -30,6 +30,8 @@ fn main() {
     let raymarch = damn(env!("raymarch::raymarch"));
     let blit = damn(env!("blit::blit"));
     let generation = damn(env!("voxel::generation"));
+    let propagate = damn(env!("voxel::propagate"));
+    let update = damn(env!("voxel::update"));
 
     env_logger::builder().filter(Some("wgpu_core"), log::LevelFilter::Warn).filter(Some("wgpu_hal"), log::LevelFilter::Warn).filter_level(log::LevelFilter::Debug).init();
     let event_loop = EventLoop::new().unwrap();
@@ -54,6 +56,20 @@ fn main() {
         state.device.create_shader_module_spirv(&ShaderModuleDescriptorSpirV {
             label: Some("generation module"),
             source: make_spirv_raw(&generation),
+        })
+    };
+
+    let propagate_module = unsafe { 
+        state.device.create_shader_module_spirv(&ShaderModuleDescriptorSpirV {
+            label: Some("propagate module"),
+            source: make_spirv_raw(&propagate),
+        })
+    };
+
+    let update_module = unsafe { 
+        state.device.create_shader_module_spirv(&ShaderModuleDescriptorSpirV {
+            label: Some("update module"),
+            source: make_spirv_raw(&update),
         })
     };
 
@@ -100,6 +116,21 @@ fn main() {
         label: Some("generation bind group layout"),
         entries: &[BindGroupLayoutEntry {
             binding: 0,
+            visibility: ShaderStages::COMPUTE,
+            ty: BindingType::StorageTexture { access: StorageTextureAccess::WriteOnly, format: TextureFormat::R8Uint, view_dimension: TextureViewDimension::D3 },
+            count: None,
+        }],
+    });
+    
+    let bind_group_layout_voxel_src_to_dst = state.device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+        label: Some("voxel src to dst bind group layout"),
+        entries: &[BindGroupLayoutEntry {
+            binding: 0,
+            visibility: ShaderStages::COMPUTE,
+            ty: BindingType::StorageTexture { access: StorageTextureAccess::ReadOnly, format: TextureFormat::R8Uint, view_dimension: TextureViewDimension::D3 },
+            count: None,
+        }, BindGroupLayoutEntry {
+            binding: 1,
             visibility: ShaderStages::COMPUTE,
             ty: BindingType::StorageTexture { access: StorageTextureAccess::WriteOnly, format: TextureFormat::R8Uint, view_dimension: TextureViewDimension::D3 },
             count: None,
@@ -165,6 +196,19 @@ fn main() {
         entry_point: "voxel::generation"
     });
 
+    let voxel_src_to_dst_layout = state.device.create_pipeline_layout(&PipelineLayoutDescriptor {
+        label: Some("propagate pipeline layout"),
+        bind_group_layouts: &[&bind_group_layout_voxel_src_to_dst],
+        push_constant_ranges: &[],
+    });
+
+    let propagate_pipeline = state.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+        label: Some("propagate pipeline"),
+        layout: Some(&voxel_src_to_dst_layout),
+        module: &propagate_module,
+        entry_point: "voxel::propagate"
+    });
+
     let generation_bind_group = state.device.create_bind_group(&BindGroupDescriptor {
         label: Some("generation bind group"),
         layout: &bind_group_layout_generation,
@@ -182,6 +226,48 @@ fn main() {
     _compute_pass.dispatch_workgroups(CHUNK_SIZE / 8, CHUNK_SIZE / 8, CHUNK_SIZE / 8);
     drop(_compute_pass);
     state.queue.submit([_encoder.finish()]);
+
+    let mut _encoder = state.device.create_command_encoder(&Default::default());
+
+    let bind_groups = (0..(voxels.mip_level_count()-1)).map(|i| {
+        let src = voxels.create_view(&TextureViewDescriptor {
+            base_mip_level: i,
+            mip_level_count: NonZeroU32::new(1),
+            ..Default::default()
+        });
+
+        let dst = voxels.create_view(&TextureViewDescriptor {
+            base_mip_level: i+1,
+            mip_level_count: NonZeroU32::new(1),
+            ..Default::default()
+        });
+
+        state.device.create_bind_group(&BindGroupDescriptor {
+            label: Some("generation bind group"),
+            layout: &bind_group_layout_voxel_src_to_dst,
+            entries: &[BindGroupEntry {
+                binding: 0,
+                resource: BindingResource::TextureView(&src),
+            }, BindGroupEntry {
+                binding: 1,
+                resource: BindingResource::TextureView(&dst),
+            }],
+        })
+    }).collect::<Vec<_>>();
+
+    let mut _compute_pass = _encoder.begin_compute_pass(&wgpu::ComputePassDescriptor::default());
+    _compute_pass.set_pipeline(&propagate_pipeline);
+    let refs = bind_groups.iter().collect::<Vec<_>>();
+
+    let mut size = CHUNK_SIZE;
+    for i in refs {
+        _compute_pass.set_bind_group(0, i, &[]);
+        _compute_pass.dispatch_workgroups(size / 2, size / 2, size / 2);
+        size /= 2;
+    }
+
+    drop(_compute_pass);
+    state.queue.submit([_encoder.finish()]);
     
     let mut instant = Instant::now();
     let mut movement = Movement::default();
@@ -192,6 +278,8 @@ fn main() {
     window.set_cursor_visible(false);
 
     let start = Instant::now();
+    let mut avg_delta = vec![1.0f32; 16];
+
     event_loop.run(move |event, control_flow| {
         match event {
             Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => control_flow.exit(),
@@ -244,9 +332,14 @@ fn main() {
                 
 
                 let delta = (Instant::now() - instant).as_secs_f32();
+                avg_delta.rotate_right(1);
+                avg_delta[0] = delta;
+                
+                let avg = avg_delta.iter().copied().sum::<f32>() / (avg_delta.len() as f32);
+                println!("delta: {}ms, fps: {:.2}", avg * 1000.0, 1.0/avg);
+                
                 movement.update(&input, window.inner_size().width as f32 / window.inner_size().height as f32, delta);
                 instant = Instant::now();
-
                 let constants = RaymarchParams {
                     proj_matrix: movement.proj_matrix,
                     view_matrix: movement.view_matrix,
@@ -357,8 +450,9 @@ fn create_src_output_texture(state: &State) -> wgpu::Texture {
     )
 }
 
+const SIZE: u32 = 128;
 fn create_voxel_texture(state: &State) -> wgpu::Texture {
-    const SIZE: u32 = 128;
+
 
     state.device.create_texture(&TextureDescriptor {
         label: Some("voxel texture"),
