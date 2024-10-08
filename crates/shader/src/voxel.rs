@@ -50,6 +50,7 @@ pub const fn neighbor_index_to_pos(index: u32) -> IVec3 {
     a
 }
 
+/*
 pub fn get_neighbor_active(
     image: &Image!(3D, format=r8ui, sampled=false, depth=false),
     pos: Vec3,
@@ -74,6 +75,7 @@ pub fn get_neighbor_active(
 
     out
 }
+*/
 
 fn indeed(params: &GenerationParams, pos: Vec3) -> Voxel {
     let mut sum = pos.y - 40f32;

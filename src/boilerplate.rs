@@ -27,9 +27,16 @@ pub async fn setup(window: &Window) -> State {
 
     let (device, queue) = adapter.request_device(
         &DeviceDescriptor {
-            features: Features::default() | Features::SPIRV_SHADER_PASSTHROUGH | Features::PUSH_CONSTANTS | Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES | Features::UNIFORM_BUFFER_AND_STORAGE_TEXTURE_ARRAY_NON_UNIFORM_INDEXING,
+            features: Features::default() |
+            Features::SPIRV_SHADER_PASSTHROUGH |
+            Features::PUSH_CONSTANTS |
+            Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES |
+            Features::TEXTURE_BINDING_ARRAY |
+            Features::STORAGE_RESOURCE_BINDING_ARRAY |
+            Features::UNIFORM_BUFFER_AND_STORAGE_TEXTURE_ARRAY_NON_UNIFORM_INDEXING,
             limits: wgpu::Limits {
                 max_push_constant_size: 128,
+                max_storage_textures_per_shader_stage: 64, 
                 ..Default::default()
             },
             label: None,

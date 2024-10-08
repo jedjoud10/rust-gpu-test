@@ -1,11 +1,12 @@
 use shared::*;
+use spirv_std::RuntimeArray;
 use crate::{lighting::{self, light}, voxel};
 
 #[spirv(compute(threads(8, 8, 1)))]
 pub unsafe fn raymarch(
     #[spirv(global_invocation_id)] id: UVec3,
     #[spirv(descriptor_set = 0, binding = 0)] image: &Image!(2D, format=rgba8_snorm, sampled=false, depth=false),
-    #[spirv(descriptor_set = 0, binding = 1)] texture: &Image!(3D, format=r8ui, sampled=false, depth=false),
+    #[spirv(descriptor_set = 0, binding = 1)] mips: &[Image!(3D, format=r8ui, sampled=false, depth=false); MAX_MIPS as usize],
     #[spirv(uniform, descriptor_set = 0, binding = 2)] constants: &RaymarchParams,
 ) {
     let mut coords = Vec2::new(id.x as f32 / constants.width, id.y as f32 / constants.height);
@@ -17,7 +18,7 @@ pub unsafe fn raymarch(
     _dir.w = 0f32;
     let dir = constants.view_matrix.inverse().mul_vec4(_dir).xyz().normalize();
 
-    let raymarch = raymarch_internal(constants.position.xyz(), dir, texture);
+    let raymarch = raymarch_internal(constants.position.xyz(), dir, mips);
     
     let mut lighting = if raymarch.hit {
         lighting::light(raymarch)
@@ -83,13 +84,13 @@ pub const MAX_REFRACTIONS: u32 = 8;
 pub fn raymarch_internal(
     ray_start: Vec3,
     mut ray_dir: Vec3,
-    image: &Image!(3D, format=r8ui, sampled=false, depth=false),
+    image: &[Image!(3D, format=r8ui, sampled=false, depth=false); MAX_MIPS as usize],
 ) -> RaymarchOutput {
     let mut starting_bozo = ray_start;
-    let mut pos = ray_start.floor();
+    let mut pos = starting_bozo.floor();
     let mut sign = ray_dir.signum();
     let mut inv_dir = ray_dir.recip();
-    let mut side_dist = (pos - ray_start + 0.5 + 0.5 * sign) * inv_dir; 
+    let mut side_dist = (pos - starting_bozo + 0.5 + 0.5 * sign) * inv_dir; 
     let mut face = 0;
     let mut reflections = 1;
     let mut refractions = 1;
@@ -97,7 +98,7 @@ pub fn raymarch_internal(
 
     for x in 0..STEPS  {
         // Voxel bitmask shenanigans
-        let voxel = voxel::get(image, pos);
+        let voxel = voxel::get(&image[0], pos);
         if voxel.active {
             // Literally stolen from that shadertoy link to handle UV coords. Thankies DapperCore
             // This first calculates world position, and then subtracts pos to calculate local position

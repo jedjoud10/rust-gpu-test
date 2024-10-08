@@ -18,6 +18,7 @@ pub use spirv_std::Image;
 pub use spirv_std::{glam::UVec3, spirv};
 
 pub const CHUNK_SIZE: u32 = 128;
+pub const MAX_MIPS: u32 = CHUNK_SIZE.trailing_zeros() + 1;
 pub const SIZE_REDUCTION: u32 = 1;
 
 #[cfg_attr(not(target_arch = "spirv"), derive(AsStd430))]

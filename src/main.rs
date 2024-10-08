@@ -26,6 +26,8 @@ fn damn<P: AsRef<Path>>(path: P) -> Vec<u8> {
     bytes
 }
 
+const FORMAT: TextureFormat = TextureFormat::R8Uint; 
+
 fn main() {
     let raymarch = damn(env!("raymarch::raymarch"));
     let blit = damn(env!("blit::blit"));
@@ -73,6 +75,9 @@ fn main() {
         })
     };
 
+
+    let voxels = create_voxel_texture(&state);
+
     let bind_group_layout = state.device.create_bind_group_layout(&BindGroupLayoutDescriptor {
         label: Some("raymarch bind group layout"),
         entries: &[BindGroupLayoutEntry {
@@ -84,8 +89,8 @@ fn main() {
         BindGroupLayoutEntry {
             binding: 1,
             visibility: ShaderStages::COMPUTE,
-            ty: BindingType::StorageTexture { access: StorageTextureAccess::ReadOnly, format: TextureFormat::R8Uint, view_dimension: TextureViewDimension::D3 },
-            count: None,
+            ty: BindingType::StorageTexture { access: StorageTextureAccess::ReadOnly, format: FORMAT, view_dimension: TextureViewDimension::D3 },
+            count: NonZeroU32::new(MAX_MIPS),
         },
         BindGroupLayoutEntry {
             binding: 2,
@@ -117,7 +122,7 @@ fn main() {
         entries: &[BindGroupLayoutEntry {
             binding: 0,
             visibility: ShaderStages::COMPUTE,
-            ty: BindingType::StorageTexture { access: StorageTextureAccess::WriteOnly, format: TextureFormat::R8Uint, view_dimension: TextureViewDimension::D3 },
+            ty: BindingType::StorageTexture { access: StorageTextureAccess::WriteOnly, format: FORMAT, view_dimension: TextureViewDimension::D3 },
             count: None,
         }],
     });
@@ -127,23 +132,31 @@ fn main() {
         entries: &[BindGroupLayoutEntry {
             binding: 0,
             visibility: ShaderStages::COMPUTE,
-            ty: BindingType::StorageTexture { access: StorageTextureAccess::ReadOnly, format: TextureFormat::R8Uint, view_dimension: TextureViewDimension::D3 },
+            ty: BindingType::StorageTexture { access: StorageTextureAccess::ReadOnly, format: FORMAT, view_dimension: TextureViewDimension::D3 },
             count: None,
         }, BindGroupLayoutEntry {
             binding: 1,
             visibility: ShaderStages::COMPUTE,
-            ty: BindingType::StorageTexture { access: StorageTextureAccess::WriteOnly, format: TextureFormat::R8Uint, view_dimension: TextureViewDimension::D3 },
+            ty: BindingType::StorageTexture { access: StorageTextureAccess::WriteOnly, format: FORMAT, view_dimension: TextureViewDimension::D3 },
             count: None,
         }],
     });
-
-    let voxels = create_voxel_texture(&state);
 
     let voxel_view = voxels.create_view(&TextureViewDescriptor {
         base_mip_level: 0,
         mip_level_count: NonZeroU32::new(1),
         ..Default::default()
     });
+
+    let voxel_views = (0..voxels.mip_level_count()).map(|i| {
+        voxels.create_view(&TextureViewDescriptor {
+            base_mip_level: i,
+            mip_level_count: NonZeroU32::new(1),
+            ..Default::default()
+        })
+    }).collect::<Vec<_>>();
+
+    let voxel_views_refs = voxel_views.iter().collect::<Vec<_>>();
 
     let mut src_output = create_src_output_texture(&state);
     
@@ -229,7 +242,7 @@ fn main() {
 
     let mut _encoder = state.device.create_command_encoder(&Default::default());
 
-    let bind_groups = (0..(voxels.mip_level_count()-1)).map(|i| {
+    let bind_groups = (0..(MAX_MIPS-1)).map(|i| {
         let src = voxels.create_view(&TextureViewDescriptor {
             base_mip_level: i,
             mip_level_count: NonZeroU32::new(1),
@@ -379,7 +392,7 @@ fn main() {
                         resource: BindingResource::TextureView(&src_view),
                     }, BindGroupEntry {
                         binding: 1,
-                        resource: BindingResource::TextureView(&voxel_view),
+                        resource: BindingResource::TextureViewArray(&voxel_views_refs),
                     },
                     BindGroupEntry {
                         binding: 2,
@@ -450,17 +463,14 @@ fn create_src_output_texture(state: &State) -> wgpu::Texture {
     )
 }
 
-const SIZE: u32 = 128;
 fn create_voxel_texture(state: &State) -> wgpu::Texture {
-
-
     state.device.create_texture(&TextureDescriptor {
         label: Some("voxel texture"),
-        size: Extent3d { width: SIZE, height: SIZE, depth_or_array_layers: SIZE },
-        mip_level_count: SIZE.trailing_zeros() + 1,
+        size: Extent3d { width: CHUNK_SIZE, height: CHUNK_SIZE, depth_or_array_layers: CHUNK_SIZE },
+        mip_level_count: MAX_MIPS,
         sample_count: 1,
         dimension: TextureDimension::D3,
-        format: TextureFormat::R8Uint,
+        format: FORMAT,
         usage: TextureUsages::STORAGE_BINDING,
         view_formats: &[] }
     )
