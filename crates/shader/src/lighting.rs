@@ -11,6 +11,7 @@ fn aces(x: Vec3) -> Vec3 {
     return Vec3::clamp((x * (a * x + b)) / (x * (c * x + d) + e), Vec3::ZERO, Vec3::ONE);
 }
 
+#[inline]
 pub fn light(input: RaymarchOutput) -> Vec3 {
     // This should be a parameter but wtv
     let sun = vec3(1.0, 1.0, 1.0).normalize();
@@ -59,10 +60,12 @@ pub fn light(input: RaymarchOutput) -> Vec3 {
 }
 
 // https://stackoverflow.com/questions/23975555/how-to-calculate-a-ray-plane-intersection
+#[inline]
 pub fn plane(origin: Vec3, ray: Vec3, normal: Vec3) -> f32 {
     origin.dot(normal) / (normal.dot(ray))
 }
 
+#[inline]
 pub fn sky(input: RaymarchOutput) -> Vec3 {
     let pos = input.ray_start;
     let dir = input.ray_dir;

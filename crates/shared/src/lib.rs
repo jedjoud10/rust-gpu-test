@@ -21,6 +21,27 @@ pub const CHUNK_SIZE: u32 = 128;
 pub const MAX_MIPS: u32 = CHUNK_SIZE.trailing_zeros() + 1;
 pub const SIZE_REDUCTION: u32 = 1;
 
+#[repr(u32)]
+#[derive(Clone, Copy)]
+pub enum DebugRenderMode {
+    Default=0,
+    Diffuse=1,
+    Normal=2,
+    Iteration=3,
+}
+
+impl Into<u32> for DebugRenderMode {
+    fn into(self) -> u32 {
+        unsafe { core::mem::transmute(self) }
+    }
+}
+
+impl From<u32> for DebugRenderMode {
+    fn from(value: u32) -> Self {
+        unsafe { core::mem::transmute(value) }
+    }
+}
+
 #[cfg_attr(not(target_arch = "spirv"), derive(AsStd430))]
 pub struct RaymarchParams {
     pub proj_matrix: glam::Mat4,
@@ -28,6 +49,7 @@ pub struct RaymarchParams {
     pub position: glam::Vec4,
     pub width: f32,
     pub height: f32,
+    pub mode: u32,
 }
 
 #[cfg_attr(not(target_arch = "spirv"), derive(AsStd430))]

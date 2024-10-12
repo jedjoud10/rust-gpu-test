@@ -293,6 +293,8 @@ fn main() {
     let start = Instant::now();
     let mut avg_delta = vec![1.0f32; 16];
 
+    let mut mode = DebugRenderMode::Default;
+
     event_loop.run(move |event, control_flow| {
         match event {
             Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => control_flow.exit(),
@@ -324,6 +326,13 @@ fn main() {
 
                 if input.get_button(KeyCode::Escape).pressed() {
                     control_flow.exit();
+                }
+
+                if input.get_button(KeyCode::F4).pressed() {
+                    mode = match mode {
+                        DebugRenderMode::Default => DebugRenderMode::Iteration,
+                        _ => DebugRenderMode::Default
+                    };
                 }
 
                 /*
@@ -359,6 +368,7 @@ fn main() {
                     position: Vec4::from((movement.position, 0f32)),
                     width: (window.inner_size().width / SIZE_REDUCTION) as f32,
                     height: (window.inner_size().height / SIZE_REDUCTION) as f32,
+                    mode: mode.into(),
                 };
 
                 let data = constants.as_std430();

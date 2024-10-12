@@ -7,9 +7,9 @@ pub struct Voxel {
     pub refractive: bool,
 }
 
-fn remap(pos: Vec3) -> UVec3 {
+fn remap(pos: Vec3, scaling: f32) -> UVec3 {
     let y = pos.y.max(0.0) as u32;
-    let mut temp = pos.floor().rem_euclid(Vec3::ONE * CHUNK_SIZE as f32).as_uvec3();
+    let mut temp = pos.floor().rem_euclid(Vec3::ONE * CHUNK_SIZE as f32 / scaling).as_uvec3();
     temp.y = y;
     temp
 }
@@ -17,8 +17,10 @@ fn remap(pos: Vec3) -> UVec3 {
 pub fn get(
     image: &Image!(3D, format=r8ui, sampled=false, depth=false),
     pos: Vec3,
+    level: u32,
 ) -> Voxel {
-    let pos = remap(pos);
+    let scaling = 2.0f32.pow(level as f32);
+    let pos = remap(pos / scaling, scaling);
     let bits = image.read(pos);
 
     Voxel {
@@ -90,8 +92,10 @@ fn indeed(params: &GenerationParams, pos: Vec3) -> Voxel {
 
     Voxel {
         active: sum < 0f32,
-        reflective: rng::hash13(pos) > 0.95,
-        refractive: rng::hash13(pos * 0.5849) > 0.95,
+        //reflective: rng::hash13(pos) > 0.95,
+        //refractive: rng::hash13(pos * 0.5849) > 0.35,
+        reflective: false,
+        refractive: false,
     }
 }
 

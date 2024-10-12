@@ -26,8 +26,19 @@ pub unsafe fn raymarch(
         lighting::sky(raymarch)
     };
 
-    lighting /= f32::powf(2f32, f32::max(raymarch.reflections as f32 - 1.0, 0.0));
-    lighting *= raymarch.refraction_tint;
+    match DebugRenderMode::from(constants.mode) {
+        DebugRenderMode::Default => {
+            lighting /= f32::powf(2f32, f32::max(raymarch.reflections as f32 - 1.0, 0.0));
+            lighting *= raymarch.refraction_tint;
+        },
+        DebugRenderMode::Iteration => {
+            lighting = Vec3::ONE * raymarch.iteration_percent;
+        },
+        _ => panic!(),
+    }
+
+
+    
     //lighting = Vec3::lerp(lighting, Vec3::ONE, (raymarch.fog_sum * 0.01).clamp(0.0, 1.0));
     image.write(id.xy(), Vec4::from((lighting, 1f32)));
 }
@@ -97,8 +108,13 @@ pub fn raymarch_internal(
     let mut refraction_tint = Vec3::ONE;
 
     for x in 0..STEPS  {
+        // Early break
+        if pos.y >= 90.0 {
+            break;
+        }
+
         // Voxel bitmask shenanigans
-        let voxel = voxel::get(&image[0], pos);
+        let voxel = voxel::get(&image[0], pos, 0);
         if voxel.active {
             // Literally stolen from that shadertoy link to handle UV coords. Thankies DapperCore
             // This first calculates world position, and then subtracts pos to calculate local position
@@ -125,7 +141,10 @@ pub fn raymarch_internal(
                 //   when other rays are done (and their rays, and their rays)
                 //   take the average lighting values
                 //   average out their values eventually
-                //let normal_offset = (rng::hash33(world * vec3(42.594, 12.435, 65.945)) - 0.5) * 0.0f32;
+                // ACTUALLY NO!!!
+                // we can just do the shiddy TAA / accumulation method and reproject stuff instead!!!
+                
+                //let normal_offset = (rng::hash33(world * vec3(42.594, 12.435, 65.945)) - 0.5) * 0.4f32;
                 let normal_offset = Vec3::ZERO;
 
                 if voxel.reflective && reflections < MAX_REFLECTIONS {
@@ -133,8 +152,8 @@ pub fn raymarch_internal(
                     ray_dir = reflected + normal_offset;
                     reflections += 1;
                 } else if voxel.refractive && refractions < MAX_REFRACTIONS {
-                    ray_dir = refract((world - starting_bozo).normalize(), normal + normal_offset, 1.4 / 1.5);
-                    refraction_tint *= rng::hash33(pos.floor());
+                    ray_dir = refract((world - starting_bozo).normalize(), normal + normal_offset, 1.0 / 1.5);
+                    refraction_tint *= rng::hash33(pos.floor()).normalize();
                     refractions += 1;
                 } 
 
@@ -173,18 +192,19 @@ pub fn raymarch_internal(
             }
         }
 
+        let a = if !voxel::get(&image[1], pos, 1).active { 2.0 } else { 1.0 };
         // Ok so I feel like I'm on the very edge of grasping *why* we can do this but not really. Something isn't clicking in my brain but who cares it works!!! (defo not stolen from gpt)
         if side_dist.x < side_dist.y && side_dist.x < side_dist.z {
-            pos.x += sign.x;
-            side_dist.x += sign.x * inv_dir.x; 
+            pos.x += sign.x * a;
+            side_dist.x += sign.x * inv_dir.x * a; 
             face = 0;
         } else if side_dist.y < side_dist.z {
-            pos.y += sign.y;
-            side_dist.y += sign.y * inv_dir.y; 
+            pos.y += sign.y * a;
+            side_dist.y += sign.y * inv_dir.y * a; 
             face = 1;
         } else {
-            pos.z += sign.z;
-            side_dist.z += sign.z * inv_dir.z;  
+            pos.z += sign.z * a;
+            side_dist.z += sign.z * inv_dir.z * a;  
             face = 2;
         }
     }
@@ -194,6 +214,7 @@ pub fn raymarch_internal(
         ray_start: starting_bozo,
         reflections,
         refraction_tint,
+        iteration_percent: 1.0,
         ..Default::default()    
     }
 }
