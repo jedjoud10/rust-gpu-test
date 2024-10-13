@@ -99,9 +99,12 @@ pub fn raymarch_internal(
 ) -> RaymarchOutput {
     let mut starting_bozo = ray_start;
     let mut pos = starting_bozo.floor();
+    let mut pos2 = (starting_bozo / 8.0).floor();
     let mut sign = ray_dir.signum();
     let mut inv_dir = ray_dir.recip();
+    //let mut inv_dir2 = (ray_dir*8.0).recip();
     let mut side_dist = (pos - starting_bozo + 0.5 + 0.5 * sign) * inv_dir; 
+    let mut side_dist2 = (pos2 * 8.0 - starting_bozo + 4.0 + 4.0 * sign) * inv_dir; 
     let mut face = 0;
     let mut reflections = 1;
     let mut refractions = 1;
@@ -113,14 +116,23 @@ pub fn raymarch_internal(
             break;
         }
 
+        /*
+        for i in (0..1).rev() {
+            let scaling = 2.0f32.pow(i as f32);
+            let mut pos = starting_bozo.floor();
+            let mut temp_side_dist = (pos * scaling - starting_bozo + 0.5 + 0.5 * sign) * inv_dir; 
+        }
+        */
+
+        // Literally stolen from that shadertoy link to handle UV coords. Thankies DapperCore
+        // This first calculates world position, and then subtracts pos to calculate local position
+        let test = (pos - starting_bozo + 0.5 - 0.5 * sign) * inv_dir; 
+        let max = test.max_element();
+        let world = starting_bozo + ray_dir * max;
+
         // Voxel bitmask shenanigans
         let voxel = voxel::get(&image[0], pos, 0);
         if voxel.active {
-            // Literally stolen from that shadertoy link to handle UV coords. Thankies DapperCore
-            // This first calculates world position, and then subtracts pos to calculate local position
-            let test = (pos - starting_bozo + 0.5 - 0.5 * sign) * inv_dir; 
-            let max = test.max_element();
-            let world = starting_bozo + ray_dir * max;
             let local_unshifted = world - pos;
 
             // we shift the local pos slightly inwards so that we avoid floating point precision errors 
@@ -191,20 +203,50 @@ pub fn raymarch_internal(
                 };
             }
         }
+        
+        let last = voxel::get(&image[3], pos2, 3).active;
+        if !last {
 
-        let a = if !voxel::get(&image[1], pos, 1).active { 2.0 } else { 1.0 };
+            if side_dist2.x < side_dist2.y && side_dist2.x < side_dist2.z {
+                pos2.x += sign.x;
+                side_dist2.x += sign.x * inv_dir.x * 8.0;
+            } else if side_dist2.y < side_dist2.z {
+                pos2.y += sign.y;
+                side_dist2.y += sign.y * inv_dir.y * 8.0; 
+            } else {
+                pos2.z += sign.z;
+                side_dist2.z += sign.z * inv_dir.z * 8.0;  
+            }
+
+            let new = voxel::get(&image[3], pos2, 3).active;
+
+            
+
+            if last == new && !new {
+                let test = (pos2 * 8.0 - starting_bozo + 4.0 - 4.0 * sign) * inv_dir; 
+                let max = test.max_element();
+                let world = starting_bozo + ray_dir * max;
+
+                let copy = world + ray_dir * 0.01;
+                pos = copy.floor();
+                starting_bozo = copy;
+                side_dist = (pos - copy + 0.5 + 0.5 * sign) * inv_dir; 
+            }
+        }
+
         // Ok so I feel like I'm on the very edge of grasping *why* we can do this but not really. Something isn't clicking in my brain but who cares it works!!! (defo not stolen from gpt)
+        //let mut a = 1.0;
         if side_dist.x < side_dist.y && side_dist.x < side_dist.z {
-            pos.x += sign.x * a;
-            side_dist.x += sign.x * inv_dir.x * a; 
+            pos.x += sign.x;
+            side_dist.x += sign.x * inv_dir.x; 
             face = 0;
         } else if side_dist.y < side_dist.z {
-            pos.y += sign.y * a;
-            side_dist.y += sign.y * inv_dir.y * a; 
+            pos.y += sign.y;
+            side_dist.y += sign.y * inv_dir.y; 
             face = 1;
         } else {
-            pos.z += sign.z * a;
-            side_dist.z += sign.z * inv_dir.z * a;  
+            pos.z += sign.z;
+            side_dist.z += sign.z * inv_dir.z;  
             face = 2;
         }
     }

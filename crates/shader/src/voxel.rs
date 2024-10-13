@@ -20,7 +20,7 @@ pub fn get(
     level: u32,
 ) -> Voxel {
     let scaling = 2.0f32.pow(level as f32);
-    let pos = remap(pos / scaling, scaling);
+    let pos = remap(pos, scaling);
     let bits = image.read(pos);
 
     Voxel {
