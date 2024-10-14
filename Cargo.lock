@@ -1386,6 +1386,7 @@ name = "rust-gpu-test"
 version = "0.1.0"
 dependencies = [
  "ahash 0.8.6",
+ "cfg-if",
  "env_logger",
  "log",
  "pollster",
@@ -1393,6 +1394,7 @@ dependencies = [
  "spirv-builder",
  "wgpu",
  "winit",
+ "with_builtin_macros",
 ]
 
 [[package]]
@@ -2524,6 +2526,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f593a95398737aeed53e489c785df13f3618e41dbcd6718c6addbf1395aa6876"
 dependencies = [
  "memchr",
+]
+
+[[package]]
+name = "with_builtin_macros"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "24deb3cd6e530e7617b12b1f0f1ce160a3a71d92feb351c4db5156d1d10e398a"
+dependencies = [
+ "with_builtin_macros-proc_macros",
+]
+
+[[package]]
+name = "with_builtin_macros-proc_macros"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2259ae9b1285596f1ee52ce8f627013c65853d4d7f271cb10bfe2d048769804a"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]

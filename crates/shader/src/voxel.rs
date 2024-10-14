@@ -1,11 +1,33 @@
 use shared::*;
 use spirv_std::{arch::*, image::Image, memory::{Scope, Semantics}};
 
+#[derive(Clone, Copy)]
 pub struct Voxel {
     pub active: bool,
+    pub id: u32,
+}
+
+#[derive(Clone, Copy)]
+pub struct VoxelType {
+    pub diffuse: Vec3,
     pub reflective: bool,
     pub refractive: bool,
 }
+
+pub const fn def(diffuse: Vec3, reflective: bool, refractive: bool) -> VoxelType {
+    VoxelType {
+        diffuse,
+        reflective,
+        refractive,
+    }
+}
+
+pub const VOXEL_TYPES: [VoxelType; 4] = [
+    def(Vec3::ONE, false, false),
+    def(vec3(0.5, 0.5, 0.5), false, false),
+    def(Vec3::ONE, true, false),
+    def(Vec3::ONE, false, true),
+];
 
 fn remap(pos: Vec3, scaling: f32) -> UVec3 {
     let y = pos.y.max(0.0) as u32;
@@ -25,8 +47,7 @@ pub fn get(
 
     Voxel {
         active: bits & 1 != 0,
-        reflective: bits & 2 != 0,
-        refractive: bits & 4 != 0,
+        id: (bits & !1) >> 1
     }
 }
 
@@ -84,18 +105,29 @@ fn indeed(params: &GenerationParams, pos: Vec3) -> Voxel {
     //sum += rng::hash13(pos) * 2f32;
     //sum += f32::sin(pos.x * 0.1) * 2f32;
 
-    sum += noise::fbm_simplex_2d(pos.xz() * 0.02, 4, 0.4, 2.0) * 2.8;
+    sum += noise::fbm_simplex_2d(pos.xz() * 0.02, 4, 0.4, 3.0) * 30.0;
+
+    let bruh = <f32 as Real>::abs(noise::simplex_noise_3d(pos * vec3(1.0, 0.4, 1.0) * 0.01) * noise::simplex_noise_2d(pos.xz() * 0.03)) * 10.0;
+    sum -= bruh; 
+
+    let a = noise::simplex_noise_2d(pos.xz() * 0.01 + 56.123 * Vec2::ONE);
+    let b = noise::simplex_noise_2d(pos.xy() * 0.01 + 12.98 * Vec2::ONE);
+    let c = noise::simplex_noise_2d(pos.yz() * 0.01 - 96.48 * Vec2::ONE);
+    let test = noise::fbm_simplex_3d(pos * 0.02 * (Vec3::ONE + vec3(a, b, c)), 4, 0.4, 3.0);
+
+    if test < -0.8 {
+        sum += 20.0;
+    }
     
     if rng::hash12(pos.xz()) * 70.0 > pos.y && rng::hash12(pos.xz() * 0.54) > 0.98 {
-        //sum -= 30.0;
+        //sum -= 30.0 + pos.y;
     }
 
     Voxel {
         active: sum < 0f32,
         //reflective: rng::hash13(pos) > 0.95,
-        //refractive: rng::hash13(pos * 0.5849) > 0.35,
-        reflective: false,
-        refractive: false,
+        //refractive: rng::hash13(pos * 0.5849) > 0.95,
+        id: (test < -0.7) as u32,
     }
 }
 
@@ -107,10 +139,7 @@ pub unsafe fn generation(
     #[spirv(push_constant)] constants: &GenerationParams,
 ) {
     let voxel = indeed(constants, id.xyz().as_vec3());
-    let active = voxel.active as u32;
-    let reflective = (voxel.reflective as u32) << 1;
-    let refractive = (voxel.refractive as u32) << 2;
-    let bitmask = active | reflective | refractive;
+    let bitmask = (voxel.active as u32) | (voxel.id << 1);
 
     image.write(id.xyz(), UVec4::from((bitmask, 0, 0, 0)));
 }

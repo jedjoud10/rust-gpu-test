@@ -14,6 +14,8 @@ log = "0.4.22"
 #blit = { path = "crates/blit" }
 #raymarch = { path = "crates/raymarch" }
 shared = { path = "crates/shared" }
+cfg-if = "1.0.0"
+with_builtin_macros = "0.1.0"
 #crevice = { git = "https://github.com/LPGhatguy/crevice.git", rev = "124b542cf81fabf560093abc7e096672d2ba8c20", default-features = false, features = ["glam"] }
 #glam = "=0.24.2"
 

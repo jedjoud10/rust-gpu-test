@@ -1,39 +1,30 @@
 #![feature(int_roundings)]
-use input::Input;
+use ahash::AHashMap;
+use input::{Input, MouseButton};
 use shared::*;
 mod boilerplate;
 mod movement;
 mod input;
+mod assets;
+use assets::damn;
 
 use std::{fs::File, io::{BufReader, Read}, mem::size_of, num::NonZeroU32, path::Path, time::Instant};
 use glam::Vec4;
 use movement::*;
 use boilerplate::*;
 use crevice::std430::AsStd430;
-use wgpu::{util::make_spirv_raw, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, BufferBindingType, BufferDescriptor, BufferUsages, Extent3d, PipelineLayoutDescriptor, PushConstantRange, ShaderModuleDescriptorSpirV, ShaderStages, StorageTextureAccess, TextureAspect, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureViewDescriptor, TextureViewDimension};
+use wgpu::{util::{make_spirv_raw, BufferInitDescriptor, DeviceExt}, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, BufferBindingType, BufferDescriptor, BufferUsages, Extent3d, ImageCopyBuffer, ImageCopyBufferBase, ImageCopyTexture, ImageCopyTextureBase, ImageDataLayout, Origin3d, PipelineLayoutDescriptor, PushConstantRange, ShaderModuleDescriptorSpirV, ShaderStages, StorageTextureAccess, TextureAspect, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureViewDescriptor, TextureViewDimension};
 use winit::{event::{ElementState, Event, WindowEvent}, event_loop::{ControlFlow, EventLoop}, keyboard::{KeyCode, PhysicalKey}, window::{Window, WindowBuilder}};
-
-/*
-const RAYMARCH: &[u8] = include_bytes!();
-const BLIT: &[u8] = include_bytes!(env!("blit.spv"));
-const GENERATION: &[u8] = include_bytes!(env!("generation.spv"));
-*/
-
-fn damn<P: AsRef<Path>>(path: P) -> Vec<u8> {
-    let _raymarch = File::open(path).unwrap();
-    let mut bytes = Vec::<u8>::new();
-    BufReader::new(_raymarch).read_to_end(&mut bytes).unwrap();
-    bytes
-}
 
 const FORMAT: TextureFormat = TextureFormat::R8Uint; 
 
 fn main() {
-    let raymarch = damn(env!("raymarch::raymarch"));
-    let blit = damn(env!("blit::blit"));
-    let generation = damn(env!("voxel::generation"));
-    let propagate = damn(env!("voxel::propagate"));
-    let update = damn(env!("voxel::update"));
+    let mut assets = AHashMap::<&str, Vec<u8>>::new();
+    asset!("raymarch::raymarch", assets);
+    asset!("blit::blit", assets);
+    asset!("voxel::generation", assets);
+    asset!("voxel::propagate", assets);
+    asset!("voxel::update", assets);
 
     env_logger::builder().filter(Some("wgpu_core"), log::LevelFilter::Warn).filter(Some("wgpu_hal"), log::LevelFilter::Warn).filter_level(log::LevelFilter::Debug).init();
     let event_loop = EventLoop::new().unwrap();
@@ -43,35 +34,35 @@ fn main() {
     let raymarch_module = unsafe { 
         state.device.create_shader_module_spirv(&ShaderModuleDescriptorSpirV {
             label: Some("raymarch module"),
-            source: make_spirv_raw(&raymarch),
+            source: make_spirv_raw(&assets["raymarch::raymarch"]),
         })
     };
     
     let blit_module = unsafe { 
         state.device.create_shader_module_spirv(&ShaderModuleDescriptorSpirV {
             label: Some("blit module"),
-            source: make_spirv_raw(&blit),
+            source: make_spirv_raw(&assets["blit::blit"]),
         })
     };
 
     let generation_module = unsafe { 
         state.device.create_shader_module_spirv(&ShaderModuleDescriptorSpirV {
             label: Some("generation module"),
-            source: make_spirv_raw(&generation),
+            source: make_spirv_raw(&assets["voxel::generation"]),
         })
     };
 
     let propagate_module = unsafe { 
         state.device.create_shader_module_spirv(&ShaderModuleDescriptorSpirV {
             label: Some("propagate module"),
-            source: make_spirv_raw(&propagate),
+            source: make_spirv_raw(&assets["voxel::propagate"]),
         })
     };
 
     let update_module = unsafe { 
         state.device.create_shader_module_spirv(&ShaderModuleDescriptorSpirV {
             label: Some("update module"),
-            source: make_spirv_raw(&update),
+            source: make_spirv_raw(&assets["voxel::update"]),
         })
     };
 
@@ -335,6 +326,28 @@ fn main() {
                     };
                 }
 
+                let left = input.get_button(MouseButton::Left).held();
+                let right = input.get_button(MouseButton::Right).held();
+                if left ^ right {
+                    let byte = if left { 0b00000101 } else if right { 0b0000111 } else { 0 };
+                    let forward = movement.rotation.mul_vec3(Vec3::Z);
+                    let pos = movement.position + forward * 2.0;
+                    queue.write_texture(ImageCopyTexture {
+                        texture: &voxels,
+                        mip_level: 0,
+                        origin: Origin3d {
+                            x: pos.x as u32,
+                            y: pos.y as u32,
+                            z: pos.z as u32,
+                        },
+                        aspect: TextureAspect::All
+                    }, &[byte], ImageDataLayout { offset: 0, bytes_per_row: None, rows_per_image: None }, Extent3d {
+                        width: 1,
+                        height: 1,
+                        depth_or_array_layers: 1,
+                    });
+                }
+
                 /*
                 let constants = GenerationParams {
                     time: (Instant::now() - start).as_secs_f32(),
@@ -358,7 +371,7 @@ fn main() {
                 avg_delta[0] = delta;
                 
                 let avg = avg_delta.iter().copied().sum::<f32>() / (avg_delta.len() as f32);
-                println!("delta: {}ms, fps: {:.2}", avg * 1000.0, 1.0/avg);
+                //println!("delta: {}ms, fps: {:.2}", avg * 1000.0, 1.0/avg);
                 
                 movement.update(&input, window.inner_size().width as f32 / window.inner_size().height as f32, delta);
                 instant = Instant::now();
@@ -427,8 +440,8 @@ fn main() {
                 _compute_pass.set_pipeline(&pipeline);
                 _compute_pass.set_bind_group(0, &bind_group, &[]);
 
-                let x = window.inner_size().width.div_ceil(8 * SIZE_REDUCTION);
-                let y = window.inner_size().height.div_ceil(8 * SIZE_REDUCTION);
+                let x = window.inner_size().width.div_ceil(32 * SIZE_REDUCTION);
+                let y = window.inner_size().height.div_ceil(32 * SIZE_REDUCTION);
                 _compute_pass.dispatch_workgroups(x, y, 1);
 
                 _compute_pass.set_pipeline(&blit_pipeline);
@@ -481,7 +494,7 @@ fn create_voxel_texture(state: &State) -> wgpu::Texture {
         sample_count: 1,
         dimension: TextureDimension::D3,
         format: FORMAT,
-        usage: TextureUsages::STORAGE_BINDING,
+        usage: TextureUsages::STORAGE_BINDING | TextureUsages::COPY_DST,
         view_formats: &[] }
     )
 }

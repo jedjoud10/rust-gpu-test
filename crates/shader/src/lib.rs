@@ -2,6 +2,7 @@
 #![feature(asm_const)]
 #![allow(unused_imports)]
 #![feature(asm_experimental_arch)]
+#![feature(const_trait_impl)]
 #![cfg_attr(target_arch = "spirv", no_std)]
 
 use shared::*;
