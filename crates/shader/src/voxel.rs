@@ -116,12 +116,14 @@ fn indeed(params: &GenerationParams, pos: Vec3) -> Voxel {
     let test = noise::fbm_simplex_3d(pos * 0.02 * (Vec3::ONE + vec3(a, b, c)), 4, 0.4, 3.0);
 
     if test < -0.8 {
-        sum += 20.0;
+        sum -= 100.0;
     }
     
+    /*
     if rng::hash12(pos.xz()) * 70.0 > pos.y && rng::hash12(pos.xz() * 0.54) > 0.98 {
         //sum -= 30.0 + pos.y;
     }
+    */
 
     Voxel {
         active: sum < 0f32,

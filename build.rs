@@ -1,7 +1,7 @@
 use std::{fs::read_dir, path::Path};
-
 use spirv_builder::{Capability, SpirvBuilder};
 
+/*
 fn rerun_directory<T: AsRef<Path> + ?Sized>(dir: &T) {
     println!("cargo:rerun-if-changed={}", dir.as_ref().to_str().unwrap());
     // Find any other directories in this one.
@@ -15,16 +15,18 @@ fn rerun_directory<T: AsRef<Path> + ?Sized>(dir: &T) {
         rerun_directory(&path);
     }
 }
+*/
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed=crates");
     SpirvBuilder::new("crates/shader", "spirv-unknown-vulkan1.2")
         .print_metadata(spirv_builder::MetadataPrintout::None)
-        .extension("SPV_EXT_debug_info")
+        //.extension("SPV_EXT_debug_info")
         .capability(Capability::VariablePointers)
         .capability(Capability::StorageImageArrayNonUniformIndexing)
         .capability(Capability::StorageImageArrayDynamicIndexing)
         .capability(Capability::StorageImageExtendedFormats)
+        //.capability(Capability::VulkanMemoryModelDeviceScope)
         .multimodule(true)
         .release(false)
         .build().unwrap()

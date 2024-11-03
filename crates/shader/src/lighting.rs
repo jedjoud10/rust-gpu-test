@@ -25,7 +25,6 @@ pub fn light(input: LightingFnParams) -> Vec3 {
 
     // Rng numbers for each block and pixel within the block
     let block_pos = input.pos.floor();
-    
 
     let block_rng = rng::hash13(block_pos * vec3(15.321, 121.21, 332.5));
     let block_texel_rng = rng::hash13((input.local_pixelated + block_pos * 8.0) * vec3(32.321, 12.321, 53.23));
@@ -34,16 +33,14 @@ pub fn light(input: LightingFnParams) -> Vec3 {
     let mut normal = input.normal + (block_texel_rng - 0.5) * 0.05;
     normal = normal.normalize();
 
-    /*
     // Calculate simple diffuse color (either green or gray)
-    let mut diffuse = if input.neighbors_bitwise & (1 << voxel::neighbor_pos_to_index(ivec3(0, 1, 0))) == 0 && input.local_pixelated.y >= 7.0 {
+    let mut diffuse = if  /* input.neighbors_bitwise & (1 << voxel::neighbor_pos_to_index(ivec3(0, 1, 0))) == 0 && input.local_pixelated.y >= 7.0 */ input.normal.y == 1.0 {
         vec3(51.0, 89.0, 50.0) / 255.0
     } else {
         vec3(45.0, 46.0, 45.0) / 255.0
     };
-    */
 
-    let mut diffuse = input.voxel.diffuse;
+    diffuse *= input.voxel.diffuse;
 
     // Vary the colors a bit
     diffuse *= (block_rng * 0.2 + 0.8) * (block_texel_rng * 0.2 + 0.8);

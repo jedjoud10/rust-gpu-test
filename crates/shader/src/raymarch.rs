@@ -70,8 +70,8 @@ fn box_normal(side: u32, sign: Vec3) -> Vec3 {
 
 
 pub const STEPS: u32 = 256;
-pub const MAX_REFLECTIONS: u32 = 8;
-pub const MAX_REFRACTIONS: u32 = 8;
+pub const MAX_REFLECTIONS: u32 = 3;
+pub const MAX_REFRACTIONS: u32 = 3;
 
 // https://www.shadertoy.com/view/lfyGRW
 pub fn raymarch_internal(
@@ -85,8 +85,8 @@ pub fn raymarch_internal(
     let mut inv_dir = ray_dir.recip();
     let mut side_dist = (pos - starting_bozo + 0.5 + 0.5 * sign) * inv_dir; 
     let mut face = 0;
-    let mut reflections = 1;
-    let mut refractions = 1;
+    let mut reflections = 0;
+    let mut refractions = 0;
 
 
     let mut refraction_tint = Vec3::ONE;
@@ -94,51 +94,11 @@ pub fn raymarch_internal(
 
     let mut x = 0;
     while x < STEPS  {
+
         // Early break
         if pos.cmplt(Vec3::ZERO).any() || pos.cmpgt(Vec3::ONE * CHUNK_SIZE as f32).any()  {
             break;
         }
-
-        /*
-        for u in 1..3 {
-            let i = 3-u;
-            let k = i*3;
-            let scaling = 2.0f32.pow(k as f32);
-            let mut temppos = (starting_bozo / scaling).floor();
-            let mut tempsidedists = (temppos * scaling - starting_bozo + scaling * 0.5 + scaling * 0.5 * sign) * inv_dir;
-            let last = voxel::get(&image[k], temppos, k as u32).active;
-            if !last {
-
-                if tempsidedists.x < tempsidedists.y && tempsidedists.x < tempsidedists.z {
-                    temppos.x += sign.x;
-                    tempsidedists.x += sign.x * inv_dir.x * scaling;
-                } else if tempsidedists.y < tempsidedists.z {
-                    temppos.y += sign.y;
-                    tempsidedists.y += sign.y * inv_dir.y * scaling; 
-                } else {
-                    temppos.z += sign.z;
-                    tempsidedists.z += sign.z * inv_dir.z * scaling;  
-                }
-
-                let new = voxel::get(&image[k], temppos, k as u32).active;
-
-
-
-                if !new {
-                    let test = (temppos * scaling - starting_bozo + scaling * 0.5 - scaling * 0.5 * sign) * inv_dir; 
-                    let max = test.max_element();
-                    let world = starting_bozo + ray_dir * max;
-
-                    let copy = world;
-                    //pos = copy.floor();
-                    //side_dist = (pos - copy + 0.5 + 0.5 * sign) * inv_dir; 
-                    break;
-                }
-            } else {
-                //break;
-            }
-        }
-        */
 
         // Literally stolen from that shadertoy link to handle UV coords. Thankies DapperCore
         // This first calculates world position, and then subtracts pos to calculate local position
@@ -163,21 +123,9 @@ pub fn raymarch_internal(
 
 
             // Case where we modify teh ray direction
-            if voxel_type.reflective || voxel_type.refractive {
-                // if normal offset isnt zero then we must sample multiple rays
-                // if reflection:
-                //   initiate multiple rays with different ray dirs
-                //   halt the current ray stuff (store the temp data somewhere)
-                //   initiate the other rays
-                //   when other rays are done (and their rays, and their rays)
-                //   take the average lighting values
-                //   average out their values eventually
-                // ACTUALLY NO!!!
-                // we can just do the shiddy TAA / accumulation method and reproject stuff instead!!!
-                
-                let normal_offset = (rng::hash33(world * vec3(42.594, 12.435, 65.945)) - 0.5) * 0.2f32;
-                //let normal_offset = Vec3::ZERO;
-
+            if voxel_type.reflective || voxel_type.refractive {                
+                //let normal_offset = (rng::hash33(world * vec3(42.594, 12.435, 65.945)) - 0.5) * 0.2f32;
+                let normal_offset = Vec3::ZERO;
                 if voxel_type.reflective && reflections < MAX_REFLECTIONS {
                     let reflected = utils::reflect(ray_dir, normal);
                     ray_dir = reflected + normal_offset;
@@ -203,27 +151,6 @@ pub fn raymarch_internal(
 
             // Actual end case where we output the voxel values
             if !should_continue {
-                //let combined = voxel::get_neighbor_active(image, pos);
-                let combined = u32::MAX;
-
-                /*
-                return RaymarchOutput {
-                    block_pos: pos.floor(),
-                    ray_start: starting_bozo,
-                    normal,
-                    spherical_normal, 
-                    reflections,
-                    position: world,
-                    hit: true,
-                    neighbors_bitwise: combined,
-                    refraction_tint,
-                    iteration_percent: x as f32 / STEPS as f32,
-                    ray_dir,
-                    local,
-                    local_pixelated,
-                };
-                */
-
                 let test = lighting::LightingFnParams {
                     pos,
                     local_pixelated,
@@ -239,64 +166,6 @@ pub fn raymarch_internal(
                 };
             }
         }
-
-        /*
-        let mut temp = pos / 8.0;
-        let last = voxel::get(&image[3], temp, 3).active;
-        
-        if !last {
-            let mut tahini = side_dist + (8.0 - (pos / 8.0).floor());
-            let mut face_temp = 0;
-            
-            increment_side_dist(&mut tahini, &mut temp, sign, inv_dir, &mut face_temp);
-            let new = voxel::get(&image[3], temp, 3).active;
-
-            if (!new) {
-                for i in 0..3 {
-                    increment_side_dist(&mut side_dist, &mut pos, sign, inv_dir, &mut face);
-                }
-            }
-        }
-        */
-        
-        /*
-            if !last {
-
-                if tempsidedists.x < tempsidedists.y && tempsidedists.x < tempsidedists.z {
-                    temppos.x += sign.x;
-                    tempsidedists.x += sign.x * inv_dir.x * scaling;
-                } else if tempsidedists.y < tempsidedists.z {
-                    temppos.y += sign.y;
-                    tempsidedists.y += sign.y * inv_dir.y * scaling; 
-                } else {
-                    temppos.z += sign.z;
-                    tempsidedists.z += sign.z * inv_dir.z * scaling;  
-                }
-
-                let new = voxel::get(&image[k], temppos, k as u32).active;
-
-
-
-                if !new {
-                    let test = (temppos * scaling - starting_bozo + scaling * 0.5 - scaling * 0.5 * sign) * inv_dir; 
-                    let max = test.max_element();
-                    let world = starting_bozo + ray_dir * max;
-
-                    let copy = world;
-                    //pos = copy.floor();
-                    //side_dist = (pos - copy + 0.5 + 0.5 * sign) * inv_dir; 
-                    break;
-                }
-            } else {
-                //break;
-            }
-        */
-        
-        /*
-        for i in 0..64 {
-            increment_side_dist(&mut side_dist, &mut pos, sign, inv_dir, &mut face);
-        }
-        */
 
         // single one indeed so tehe :3
         increment_side_dist(&mut side_dist, &mut pos, sign, inv_dir, &mut face);
