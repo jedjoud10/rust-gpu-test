@@ -14,6 +14,37 @@ pub struct VoxelType {
     pub refractive: bool,
 }
 
+struct Grass;
+
+pub struct VoxelLightingData<'a> {
+    pub pos: &'a Vec3,
+    pub local_pixelated: &'a Vec3,
+    pub normal: &'a mut Vec3,
+    pub block_rng: &'a f32,
+    pub block_texel_rng: &'a f32,
+}
+
+impl VoxelTrait for Grass {
+
+
+    /*
+    fn diffuse(&self, params: &VoxelLightingData) -> Vec3 {
+        let col = if  /* input.neighbors_bitwise & (1 << voxel::neighbor_pos_to_index(ivec3(0, 1, 0))) == 0 && input.local_pixelated.y >= 7.0 */ params.normal.y == 1.0 {
+            vec3(51.0, 89.0, 50.0) / 255.0
+        } else {
+            vec3(45.0, 46.0, 45.0) / 255.0
+        };
+
+        (params.block_rng * 0.2 + 0.8) * (params.block_texel_rng * 0.2 + 0.8) * col
+    }
+    */
+}
+
+pub trait VoxelTrait: 'static {
+    //fn precalc(&self, params: &mut VoxelLightingData) {}
+    //fn diffuse(&self, params: &VoxelLightingData) -> Vec3 { Vec3::ONE }
+}
+
 pub const fn def(diffuse: Vec3, reflective: bool, refractive: bool) -> VoxelType {
     VoxelType {
         diffuse,
@@ -22,12 +53,18 @@ pub const fn def(diffuse: Vec3, reflective: bool, refractive: bool) -> VoxelType
     }
 }
 
-pub const VOXEL_TYPES: [VoxelType; 4] = [
+/*
+pub const VOXEL_TYPES: &[&dyn VoxelTrait] = &[
+    &Grass,
+
+    /*
     def(Vec3::ONE, false, false),
     def(vec3(0.5, 0.5, 0.5), false, false),
     def(Vec3::ONE, true, false),
     def(Vec3::ONE, false, true),
+    */
 ];
+*/
 
 fn remap(pos: Vec3, scaling: f32) -> UVec3 {
     let y = pos.y.max(0.0) as u32;

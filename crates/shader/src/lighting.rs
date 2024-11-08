@@ -1,5 +1,5 @@
 use shared::*;
-use crate::{voxel, RaymarchOutput, VoxelType};
+use crate::{voxel::{self, VoxelTrait}, RaymarchOutput, VoxelLightingData, VoxelType};
 
 //https://github.com/dmnsgn/glsl-tone-map/blob/main/aces.glsl
 fn aces(x: Vec3) -> Vec3 {
@@ -11,58 +11,30 @@ fn aces(x: Vec3) -> Vec3 {
     return Vec3::clamp((x * (a * x + b)) / (x * (c * x + d) + e), Vec3::ZERO, Vec3::ONE);
 }
 
-pub struct LightingFnParams {
-    pub pos: Vec3,
-    pub local_pixelated: Vec3,
-    pub normal: Vec3,
-    pub voxel: VoxelType
-}
-
 #[inline]
-pub fn light(input: LightingFnParams) -> Vec3 {
+pub fn light(pos: Vec3, local: Vec3, mut normal: Vec3) -> Vec3 {
     // This should be a parameter but wtv
     let sun = vec3(1.0, 1.0, 1.0).normalize();
 
     // Rng numbers for each block and pixel within the block
-    let block_pos = input.pos.floor();
-
+    let block_pos = pos.floor();
+    let local_pixelated = local.div_euclid(Vec3::ONE / 8.0);
     let block_rng = rng::hash13(block_pos * vec3(15.321, 121.21, 332.5));
-    let block_texel_rng = rng::hash13((input.local_pixelated + block_pos * 8.0) * vec3(32.321, 12.321, 53.23));
+    let block_texel_rng = rng::hash13((local_pixelated + block_pos * 8.0) * vec3(32.321, 12.321, 53.23));
     
-    // Randomize the normal a bit
-    let mut normal = input.normal + (block_texel_rng - 0.5) * 0.05;
-    normal = normal.normalize();
-
-    // Calculate simple diffuse color (either green or gray)
-    let mut diffuse = if  /* input.neighbors_bitwise & (1 << voxel::neighbor_pos_to_index(ivec3(0, 1, 0))) == 0 && input.local_pixelated.y >= 7.0 */ input.normal.y == 1.0 {
-        vec3(51.0, 89.0, 50.0) / 255.0
-    } else {
-        vec3(45.0, 46.0, 45.0) / 255.0
+    let mut data = VoxelLightingData {
+        pos: &pos,
+        local_pixelated: &local_pixelated,
+        normal: &mut normal,
+        block_rng: &block_rng,
+        block_texel_rng: &block_texel_rng,
     };
 
-    diffuse *= input.voxel.diffuse;
-
-    // Vary the colors a bit
-    diffuse *= (block_rng * 0.2 + 0.8) * (block_texel_rng * 0.2 + 0.8);
-
-    /*
-    let mut ao = 0.0;
-    for i in 0..27 {
-        if input.neighbors_bitwise & (1 << i) != 0 && i != voxel::neighbor_pos_to_index(IVec3::ZERO) {
-            let temp = voxel::neighbor_index_to_pos(i).as_vec3();
-
-            if (temp.normalize().dot(input.normal) > 0.4) {
-                ao += temp.normalize().dot(input.spherical_normal).max(0.0);
-            }
-        }
-    }
-    */
-
-    //return ao * Vec3::ONE * 0.2;
-    
-    // Shade everything and combine em
-    let mut color = normal.dot(sun).max(0.0) * diffuse * 1.6;
-    color += sky(input.pos, normal) * 0.5 * diffuse;
+    //voxel.precalc(&mut data);
+    //let diffuse = voxel.diffuse(&data);
+    let diffuse = Vec3::ONE;
+    let mut color = data.normal.dot(sun).max(0.0) * diffuse * 1.6;
+    color += sky(*data.pos, normal) * 0.5 * diffuse;
     color
 }
 

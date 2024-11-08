@@ -20,7 +20,7 @@ pub use spirv_std::{glam::UVec3, spirv};
 
 pub const CHUNK_SIZE: u32 = 256;
 pub const MAX_MIPS: u32 = CHUNK_SIZE.trailing_zeros() + 1;
-pub const SIZE_REDUCTION: u32 = 4;
+pub const SIZE_REDUCTION: u32 = 1;
 
 #[repr(u32)]
 #[derive(Clone, Copy)]
