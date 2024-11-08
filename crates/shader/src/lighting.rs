@@ -1,5 +1,5 @@
 use shared::*;
-use crate::{voxel::{self, VoxelTrait}, RaymarchOutput, VoxelLightingData, VoxelType};
+use crate::{voxel::{self}, RaymarchOutput, VoxelLightingData, VoxelType};
 
 //https://github.com/dmnsgn/glsl-tone-map/blob/main/aces.glsl
 fn aces(x: Vec3) -> Vec3 {
@@ -30,11 +30,16 @@ pub fn light(pos: Vec3, local: Vec3, mut normal: Vec3) -> Vec3 {
         block_texel_rng: &block_texel_rng,
     };
 
-    //voxel.precalc(&mut data);
-    //let diffuse = voxel.diffuse(&data);
-    let diffuse = Vec3::ONE;
+    *data.normal = (*data.normal + (block_texel_rng - 0.5) * 0.05).normalize();
+
+    let diffuse = (data.block_rng * 0.2 + 0.8) * (data.block_texel_rng * 0.2 + 0.8) * (if data.normal.y > 0.8 {
+        vec3(51.0, 89.0, 50.0) / 255.0
+    } else {
+        vec3(45.0, 46.0, 45.0) / 255.0
+    });
+
     let mut color = data.normal.dot(sun).max(0.0) * diffuse * 1.6;
-    color += sky(*data.pos, normal) * 0.5 * diffuse;
+    color += skybox(*data.pos, normal) * 0.5 * diffuse;
     color
 }
 
@@ -45,7 +50,7 @@ pub fn plane(origin: Vec3, ray: Vec3, normal: Vec3) -> f32 {
 }
 
 #[inline]
-pub fn sky(ray_start: Vec3, ray_dir: Vec3) -> Vec3 {
+pub fn skybox(ray_start: Vec3, ray_dir: Vec3) -> Vec3 {
     let pos = ray_start;
     let dir = ray_dir;
     

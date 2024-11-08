@@ -1,6 +1,6 @@
 use shared::*;
 use spirv_std::{num_traits, RuntimeArray};
-use crate::{lighting::{self, light, sky}, voxel};
+use crate::{lighting::{self, light, skybox}, voxel};
 
 // ok so the main "octree" optimization can work in two ways
 // 1) do a big "sparse" pass in the raymarch shader that will handle the larger octree chunks
@@ -38,15 +38,18 @@ pub unsafe fn raymarch(
     let mut oob = false;
     let mut sky = false;
     let mut sum = 0u32;
+    let mut face = 0u32;
+
+    let sign = ray_dir.signum();
+    let inv_dir = ray_dir.recip();
 
     // how many octree level changes we can do in a ray
-    while count < 32 {
+    while count < 16 {
         if level < 0 {
             break;
         }
         
-        // induce: start level n
-        if recursive_octree_3d_dda::<256>(world + ray_dir * 0.0001, ray_dir, level as u32, mips, &mut world, &mut oob, &mut sum) {
+        if recursive_octree_3d_dda::<256>(world, ray_dir, sign, inv_dir, level as u32, mips, &mut world, &mut oob, &mut sum, &mut face) {
             // if hit something, continue to level n-1 (higher res)
             level -= 1;
 
@@ -78,32 +81,34 @@ pub unsafe fn raymarch(
         count += 1; 
     }
 
-    lighting = world % Vec3::ONE;
-    if level < 0 {
-    }
+    let normal = -box_normal(face, sign);
+    lighting = lighting::light(world, world % Vec3::ONE, normal);
 
     if sky {
-        lighting = Vec3::X;
+        lighting = lighting::skybox(ray_start, ray_dir);
     }
     
-    //lighting *= count as f32 / 32.0f32;
-    lighting *= sum as f32 / (32) as f32;
-    //lighting *= min as f32 / 6.0;
+    //lighting *= ;
+    //lighting *= ;
+    //lighting *= ;
 
-    
-    
-
-
-
-
-    /*
-    if simple_octree_3d_dda::<64, 2>(ray_start, dir, mips, &mut world) {
-        /* */
-    } else {
-        lighting = sky(ray_start, ray_dir);
+    match DebugRenderMode::from(constants.mode) {
+        DebugRenderMode::Default => {},
+        DebugRenderMode::Iteration => {
+            lighting = Vec3::ONE * count as f32 / 32.0f32;
+        },
+        DebugRenderMode::Iteration1 => {
+            lighting = Vec3::ONE * sum as f32 / 32.0f32;
+        },
+        DebugRenderMode::Iteration2 => {
+            lighting = Vec3::ONE * min as f32 / max_level as f32;
+        },
+        DebugRenderMode::Normal => {
+            lighting = normal;
+        },
     }
-    */
-
+    
+    
     /*
     let raymarch = raymarch_internal(ray_start /* + dir * world.distance(ray_start) * 0.99 */, dir, mips);
     lighting = raymarch.output;
@@ -118,7 +123,6 @@ pub unsafe fn raymarch(
         _ => panic!(),
     }
     */
-
     //lighting = Vec3::lerp(lighting, Vec3::ONE, (raymarch.fog_sum * 0.01).clamp(0.0, 1.0));
     //lighting = output;
     image.write(id.xy(), Vec4::from((lighting, 1f32)));
@@ -164,16 +168,17 @@ pub const MAX_REFRACTIONS: u32 = 3;
 pub fn recursive_octree_3d_dda<const ITERS: usize>(
     ray_start: Vec3,
     ray_dir: Vec3,
+    sign: Vec3,
+    inv_dir: Vec3,
     level: u32,
     image: &[Image!(3D, format=r8ui, sampled=false, depth=false); MAX_MIPS as usize],
     world: &mut Vec3,
     oob: &mut bool,
     sum: &mut u32,
+    face: &mut u32,
 ) -> bool {
     let divisor = 2u32.pow(level) as f32;
     let mut pos = (ray_start / divisor).floor() * divisor;
-    let sign = ray_dir.signum();
-    let inv_dir = ray_dir.recip();
     let mut side_dist = (pos - ray_start + divisor * 0.5 + divisor * 0.5 * sign) * inv_dir; 
 
     let mut x = 0;
@@ -183,7 +188,7 @@ pub fn recursive_octree_3d_dda<const ITERS: usize>(
             break;
         }
 
-        // todo: figure out how to avoid calculating this and just calculating side_dist and pos across octree boundaries
+        // TODO: figure out how to avoid calculating this and just calculating side_dist and pos across octree boundaries
         let test = (pos - ray_start + divisor * 0.5 - divisor * 0.5 * sign) * inv_dir; 
         let max = test.max_element();
         *world = ray_start + ray_dir * max;
@@ -195,9 +200,8 @@ pub fn recursive_octree_3d_dda<const ITERS: usize>(
         if !voxel::get(&image[level as usize], pos / divisor, level).active {
             let a = side_dist.cmpeq(side_dist.min_element() * Vec3::ONE);
             let c = vec3(a.x as u32 as f32, a.y as u32 as f32, a.z as u32 as f32);
-        
-            pos += divisor * sign * c;
-            side_dist += divisor * sign * inv_dir * c;
+
+            increment_side_dist2(&mut side_dist, divisor, &mut pos, sign, inv_dir, face);
         } else {
             return true;
         }
@@ -358,7 +362,7 @@ pub fn raymarch_internal(
     */
 
     return RaymarchOutput2 {
-        output: sky(starting_bozo, ray_dir),
+        output: skybox(starting_bozo, ray_dir),
         refraction_tint,
         reflection_tint,
         iteration_percent: x as f32 / STEPS as f32,
@@ -381,6 +385,23 @@ pub unsafe fn touch_nation(
         out = in(reg) &mut out,
     }
     out
+}
+
+#[inline]
+fn increment_side_dist2(side_dist: &mut Vec3, scale: f32, pos: &mut Vec3, sign: Vec3, inv_dir: Vec3, face: &mut u32) {
+    let a = side_dist.cmpeq(side_dist.min_element() * Vec3::ONE);
+    let c = vec3(a.x as u32 as f32, a.y as u32 as f32, a.z as u32 as f32);
+
+    *pos += scale *sign * c;
+    *side_dist += scale * sign * c * inv_dir;
+
+    if a.x {
+        *face = 0;
+    } else if a.y {
+        *face = 1;
+    } else {
+        *face = 2;
+    }
 }
 
 // Ok so I feel like I'm on the very edge of grasping *why* we can do this but not really. Something isn't clicking in my brain but who cares it works!!! (defo not stolen from gpt)

@@ -18,17 +18,18 @@ pub use spirv_std::num_traits::real::*;
 pub use spirv_std::Image;
 pub use spirv_std::{glam::UVec3, spirv};
 
-pub const CHUNK_SIZE: u32 = 256;
+pub const CHUNK_SIZE: u32 = 512;
 pub const MAX_MIPS: u32 = CHUNK_SIZE.trailing_zeros() + 1;
-pub const SIZE_REDUCTION: u32 = 1;
+pub const SIZE_REDUCTION: u32 = 2;
 
 #[repr(u32)]
 #[derive(Clone, Copy)]
 pub enum DebugRenderMode {
     Default=0,
-    Diffuse=1,
-    Normal=2,
-    Iteration=3,
+    Normal=1,
+    Iteration=2,
+    Iteration1=3,
+    Iteration2=4,
 }
 
 impl Into<u32> for DebugRenderMode {

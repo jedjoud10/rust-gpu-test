@@ -285,7 +285,7 @@ fn main() {
     let mut avg_delta = vec![1.0f32; 16];
 
     let mut mode = DebugRenderMode::Default;
-
+    let mut counter = 0;
     event_loop.run(move |event, control_flow| {
         match event {
             Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => control_flow.exit(),
@@ -320,10 +320,9 @@ fn main() {
                 }
 
                 if input.get_button(KeyCode::F4).pressed() {
-                    mode = match mode {
-                        DebugRenderMode::Default => DebugRenderMode::Iteration,
-                        _ => DebugRenderMode::Default
-                    };
+                    counter += 1;
+                    counter %= 5;
+                    mode = DebugRenderMode::from(counter);
                 }
 
                 let left = input.get_button(MouseButton::Left).held();
