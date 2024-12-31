@@ -24,7 +24,7 @@ fn main() {
     asset!("blit::blit", assets);
     asset!("voxel::generation", assets);
     asset!("voxel::propagate", assets);
-    asset!("voxel::update", assets);
+    asset!("voxel::distance", assets);
 
     env_logger::builder().filter(Some("wgpu_core"), log::LevelFilter::Warn).filter(Some("wgpu_hal"), log::LevelFilter::Warn).filter_level(log::LevelFilter::Debug).init();
     let event_loop = EventLoop::new().unwrap();
@@ -59,13 +59,12 @@ fn main() {
         })
     };
 
-    let update_module = unsafe { 
+    let distance_module = unsafe { 
         state.device.create_shader_module_spirv(&ShaderModuleDescriptorSpirV {
-            label: Some("update module"),
-            source: make_spirv_raw(&assets["voxel::update"]),
+            label: Some("distance module"),
+            source: make_spirv_raw(&assets["voxel::distance"]),
         })
     };
-
 
     let voxels = create_voxel_texture(&state);
 
@@ -206,11 +205,27 @@ fn main() {
         push_constant_ranges: &[],
     });
 
+    let voxel_src_to_dst_layout2 = state.device.create_pipeline_layout(&PipelineLayoutDescriptor {
+        label: Some("distance pipeline layout"),
+        bind_group_layouts: &[&bind_group_layout_voxel_src_to_dst],
+        push_constant_ranges: &[PushConstantRange {
+            stages: ShaderStages::COMPUTE,
+            range: 0..4,
+        }],
+    });
+
     let propagate_pipeline = state.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
         label: Some("propagate pipeline"),
         layout: Some(&voxel_src_to_dst_layout),
         module: &propagate_module,
         entry_point: "voxel::propagate"
+    });
+
+    let distance_pipeline = state.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+        label: Some("distance pipeline"),
+        layout: Some(&voxel_src_to_dst_layout2),
+        module: &distance_module,
+        entry_point: "voxel::distance"
     });
 
     let generation_bind_group = state.device.create_bind_group(&BindGroupDescriptor {
@@ -231,6 +246,15 @@ fn main() {
     drop(_compute_pass);
     state.queue.submit([_encoder.finish()]);
 
+
+
+
+
+
+
+
+
+
     let mut _encoder = state.device.create_command_encoder(&Default::default());
 
     let bind_groups = (0..(MAX_MIPS-1)).map(|i| {
@@ -247,7 +271,7 @@ fn main() {
         });
 
         state.device.create_bind_group(&BindGroupDescriptor {
-            label: Some("generation bind group"),
+            label: Some("propagate bind group"),
             layout: &bind_group_layout_voxel_src_to_dst,
             entries: &[BindGroupEntry {
                 binding: 0,
@@ -272,6 +296,64 @@ fn main() {
 
     drop(_compute_pass);
     state.queue.submit([_encoder.finish()]);
+
+
+
+
+
+
+
+    let mut _encoder = state.device.create_command_encoder(&Default::default());
+
+    let bind_groups = (0..(MAX_MIPS-1)).rev().map(|i| {
+        let src = voxels.create_view(&TextureViewDescriptor {
+            base_mip_level: i+1,
+            mip_level_count: NonZeroU32::new(1),
+            ..Default::default()
+        });
+
+        let dst = voxels.create_view(&TextureViewDescriptor {
+            base_mip_level: i,
+            mip_level_count: NonZeroU32::new(1),
+            ..Default::default()
+        });
+
+        state.device.create_bind_group(&BindGroupDescriptor {
+            label: Some("distance bind group"),
+            layout: &bind_group_layout_voxel_src_to_dst,
+            entries: &[BindGroupEntry {
+                binding: 0,
+                resource: BindingResource::TextureView(&src),
+            }, BindGroupEntry {
+                binding: 1,
+                resource: BindingResource::TextureView(&dst),
+            }],
+        })
+    }).collect::<Vec<_>>();
+
+    let mut _compute_pass = _encoder.begin_compute_pass(&wgpu::ComputePassDescriptor::default());
+    _compute_pass.set_pipeline(&distance_pipeline);
+    let refs = bind_groups.iter().collect::<Vec<_>>();
+
+    let mut size = 2;
+    for i in refs {
+        _compute_pass.set_push_constants(0, bytemuck::bytes_of(&size));
+        _compute_pass.set_bind_group(0, i, &[]);
+        _compute_pass.dispatch_workgroups(size / 2, size / 2, size / 2);
+        size *= 2;
+    }
+
+    drop(_compute_pass);
+    state.queue.submit([_encoder.finish()]);
+
+
+
+
+
+
+
+
+
     
     let mut instant = Instant::now();
     let mut movement = Movement::default();

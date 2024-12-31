@@ -56,14 +56,23 @@ fn remap(pos: Vec3, scaling: f32) -> UVec3 {
 }
 
 #[inline]
+pub fn read_raw(
+    image: &Image!(3D, format=r8ui, sampled=false, depth=false),
+    pos: Vec3,
+    level: u32,
+) -> u32 {
+    let scaling = 2.0f32.pow(level as f32);
+    let pos = remap(pos, scaling);
+    return image.read(pos);
+}
+
+#[inline]
 pub fn get(
     image: &Image!(3D, format=r8ui, sampled=false, depth=false),
     pos: Vec3,
     level: u32,
 ) -> Voxel {
-    let scaling = 2.0f32.pow(level as f32);
-    let pos = remap(pos, scaling);
-    let bits = image.read(pos);
+    let bits = read_raw(image, pos, level);
 
     Voxel {
         active: bits & 1 != 0,
@@ -161,9 +170,11 @@ pub unsafe fn generation(
     #[spirv(push_constant)] constants: &GenerationParams,
 ) {
     let voxel = indeed(constants, id.xyz().as_vec3());
-    let bitmask = (voxel.active as u32) | (voxel.id << 1);
+    //let bitmask = (voxel.active as u32) | (voxel.id << 1);
+    let bitmask = voxel.active as u32;
 
-    image.write(id.xyz(), UVec4::from((bitmask, 0, 0, 0)));
+    //image.write(id.xyz(), UVec4::from((bitmask, 0, 0, 0)));
+    image.write(id.xyz(), uvec4(bitmask, 0, 0, 0));
 }
 
 #[spirv(compute(threads(8, 8, 8)))]
@@ -173,39 +184,6 @@ pub unsafe fn update(
     #[spirv(descriptor_set = 0, binding = 0)] dst: &Image!(3D, format=r8ui, sampled=false, depth=false),
 ) {
 }
-
-/*
-use core::arch::asm;
-#[inline]
-pub unsafe fn atomic_or_ptr<const SCOPE: u32, const SEMANTICS: u32>(
-    value: u32,
-    image: &Image!(3D, format=r8ui, sampled=false, depth=false),
-    texel: UVec3,
-) {
-    asm! {
-        "%u32 = OpTypeInt 32 0",
-        "%i32 = OpTypeInt 32 1",
-        "%value = OpLoad _ {value}",
-        "%x = OpLoad _ {x}",
-        "%y = OpLoad _ {y}",
-        "%z = OpLoad _ {z}",
-        "%scope = OpConstant %u32 {scope}",
-        "%semantics = OpConstant %u32 {semantics}",
-        "%vec3u32 = OpTypeVector %u32 3",
-        "%_ptr_Image_int = OpTypePointer Image %i32",
-        "%coord = OpCompositeConstruct %vec3u32 %x %y %z",
-        "%ptr = OpImageTexelPointer %_ptr_Image_int {image} %coord %semantics",
-        "%27 = OpAtomicOr %i32 %ptr %scope %semantics %value",
-        scope = const SCOPE,
-        semantics = const SEMANTICS,
-        x = in(reg) &texel.x,
-        y = in(reg) &texel.y,
-        z = in(reg) &texel.z,
-        image = in(reg) image,
-        value = in(reg) &value,
-    }
-}
-*/
 
 #[spirv(compute(threads(2, 2, 2)))]
 pub unsafe fn propagate(
@@ -231,8 +209,12 @@ pub unsafe fn propagate(
     workgroup_memory_barrier_with_group_sync();
     
     // atomic stuff
+    // calculate max distance between empty regions (air) and closest solid regions
     const SCOPE: u32 = Scope::Workgroup as u32;
     const SEMANTICS: u32 =  Semantics::WORKGROUP_MEMORY.bits() as u32;
+
+    //let active = src_texel == 1;
+
     atomic_or::<u32, SCOPE, SEMANTICS>(&mut workgroup, src_texel);
     workgroup_memory_barrier_with_group_sync();
 
@@ -241,4 +223,36 @@ pub unsafe fn propagate(
         let val = atomic_load::<u32, SCOPE, SEMANTICS>(&workgroup);
         dst.write(dst_texel_pos, uvec4(val, 0, 0, 0));
     }
+}
+
+#[spirv(compute(threads(2, 2, 2)))]
+pub unsafe fn distance(
+    #[spirv(global_invocation_id)] id: UVec3,
+    #[spirv(descriptor_set = 0, binding = 0)] src: &Image!(3D, format=r8ui, sampled=false, depth=false),
+    #[spirv(descriptor_set = 0, binding = 1)] dst: &Image!(3D, format=r8ui, sampled=false, depth=false),
+    #[spirv(push_constant)] size: &u32,
+) {
+    // src is the lower resolution mip
+    // dst is the higher resolution mip
+    // every invocation is executed for the texels of src
+    //dst.write(gid, uvec4(0, 0, 0, 0));
+
+    let src_texel = src.read(id.xyz());
+    
+    for x in 0..2i32 {
+        for y in 0..2i32 {
+            for z in 0..2i32 {
+                let gid = id * 2 + uvec3(x as u32,y as u32,z as u32);
+
+                if *size > 4 {
+                    if src_texel >= 2 {
+                        dst.write(gid, uvec4(src_texel / 2, 0, 0, 0));
+                    }
+                } else {
+                    dst.write(gid, uvec4(128, 0, 0, 0));
+                }
+            }
+        }    
+    }
+    
 }
