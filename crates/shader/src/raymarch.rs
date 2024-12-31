@@ -11,10 +11,17 @@ use crate::{lighting::{self, light, skybox}, voxel};
 #[spirv(compute(threads(32, 32, 1)))]
 pub unsafe fn raymarch(
     #[spirv(global_invocation_id)] id: UVec3,
+    #[spirv(local_invocation_id)] lid: UVec3,
     #[spirv(descriptor_set = 0, binding = 0)] image: &Image!(2D, format=rgba8_snorm, sampled=false, depth=false),
     #[spirv(descriptor_set = 0, binding = 1)] mips: &[Image!(3D, format=r8ui, sampled=false, depth=false); MAX_MIPS as usize],
+    #[spirv(workgroup)] var: &mut u32,
     #[spirv(uniform, descriptor_set = 0, binding = 2)] constants: &RaymarchParams,
 ) {
+    if lid == UVec3::ZERO {
+        *var = 0;
+        spirv_std::arch::workgroup_memory_barrier();
+    }
+
     let mut coords = Vec2::new(id.x as f32 / constants.width, id.y as f32 / constants.height);
     coords -= 0.5f32;
     coords *= 2.0f32;
@@ -31,6 +38,8 @@ pub unsafe fn raymarch(
     let max_level: i32 = MAX_MIPS as i32 - 2;
     let mut level = max_level;
     let mut world = ray_start;
+    let mut changes = uvec2(0, 0);
+
 
     // base: start level 0
     let mut count = 0;
@@ -39,26 +48,38 @@ pub unsafe fn raymarch(
     let mut sky = false;
     let mut sum = 0u32;
     let mut face = 0u32;
+    let mut temp = Vec3::ZERO;
 
     let sign = ray_dir.signum();
     let inv_dir = ray_dir.recip();
 
-    // how many octree level changes we can do in a ray
+    //sky = !recursive_octree_3d_dda::<256>(ray_start, ray_dir, sign, inv_dir, 0, mips, &mut world, &mut oob, &mut sum, &mut face, &mut temp);
+
     while count < 16 {
         if level < 0 {
             break;
         }
         
-        if recursive_octree_3d_dda::<256>(world, ray_dir, sign, inv_dir, level as u32, mips, &mut world, &mut oob, &mut sum, &mut face) {
+        if recursive_octree_3d_dda::<32>(world, ray_dir, sign, inv_dir, spirv_std::arch::signed_max(level, 0) as u32, mips, &mut world, &mut oob, &mut sum, &mut face, &mut temp) {
             // if hit something, continue to level n-1 (higher res)
-            level -= 1;
+            level -= 2;
+            changes.x += 1;
 
             if level < min && level >= 0 {
                 min = level;
             }
         } else {
             // if level n-1 misses, go back to level n (lower res)
-            level += 1;
+            level += 2;
+            changes.y += 1;
+
+            /*
+            let divisor = 2u32.pow(level as u32) as f32;
+            if !voxel::get(&mips[level as usize], world / divisor, level as u32).active {
+                oob = true;
+                break;
+            }
+            */
 
             /*
             // if position at level n is empty, go to n-1 recursively (which we then assume to be n)
@@ -81,12 +102,19 @@ pub unsafe fn raymarch(
         count += 1; 
     }
 
+    const SCOPE: u32 = spirv_std::memory::Scope::Workgroup as u32;
+    const SEMANTICS: u32 = spirv_std::memory::Semantics::NONE.bits();
+    spirv_std::arch::atomic_u_max::<u32, SCOPE, SEMANTICS>(var, sum);
+    spirv_std::arch::workgroup_memory_barrier();
+
     let normal = -box_normal(face, sign);
     lighting = lighting::light(world, world % Vec3::ONE, normal);
 
     if sky {
         lighting = lighting::skybox(ray_start, ray_dir);
     }
+
+    //lighting = temp;
     
     //lighting *= ;
     //lighting *= ;
@@ -98,13 +126,15 @@ pub unsafe fn raymarch(
             lighting = Vec3::ONE * count as f32 / 32.0f32;
         },
         DebugRenderMode::Iteration1 => {
-            lighting = Vec3::ONE * sum as f32 / 32.0f32;
+            lighting = Vec3::ONE * (*var - sum) as f32 / 32.0f32;
         },
         DebugRenderMode::Iteration2 => {
-            lighting = Vec3::ONE * min as f32 / max_level as f32;
+            //lighting = Vec3::ONE * count as f32 / 16.0f32;
+            lighting = Vec3::ONE * sum as f32 / (4.0*256.0);
         },
         DebugRenderMode::Normal => {
-            lighting = normal;
+            //lighting = normal;
+            lighting = changes.as_vec2().extend(0.0).normalize();
         },
     }
     
@@ -176,6 +206,7 @@ pub fn recursive_octree_3d_dda<const ITERS: usize>(
     oob: &mut bool,
     sum: &mut u32,
     face: &mut u32,
+    temp: &mut Vec3,
 ) -> bool {
     let divisor = 2u32.pow(level) as f32;
     let mut pos = (ray_start / divisor).floor() * divisor;
@@ -197,14 +228,31 @@ pub fn recursive_octree_3d_dda<const ITERS: usize>(
             *world = ray_start;
         }
 
-        if !voxel::get(&image[level as usize], pos / divisor, level).active {
-            let a = side_dist.cmpeq(side_dist.min_element() * Vec3::ONE);
-            let c = vec3(a.x as u32 as f32, a.y as u32 as f32, a.z as u32 as f32);
+        if (ray_start / (divisor * 8.0)).floor() != (pos / (divisor * 8.0)).floor() {
+            *temp = Vec3::X * (level as f32 / 8.0f32);
+            //break;
+            //*oob = true;
+            //return false;
+            //return voxel::get(&image[(level + 1) as usize], pos / (divisor * 2.0), level+1).active;
+        }
 
+        let temp2 = pos;
+        if !voxel::get(&image[level as usize], pos / divisor, level).active {
             increment_side_dist2(&mut side_dist, divisor, &mut pos, sign, inv_dir, face);
         } else {
             return true;
         }
+        
+        /*
+        for i in 0..level {
+            let o = (level-1) - i;
+
+            let divisor2 = 2u32.pow(o) as f32;
+            if voxel::get(&image[o as usize], temp2 / divisor2, o).active {
+                return false;
+            }
+        }
+        */
 
         x += 1;
         *sum += 1;

@@ -46,6 +46,8 @@ pub const VOXEL_TYPES: &[&dyn VoxelTrait] = &[
 ];
 */
 
+
+#[inline]
 fn remap(pos: Vec3, scaling: f32) -> UVec3 {
     let y = pos.y.max(0.0) as u32;
     let mut temp = pos.floor().rem_euclid(Vec3::ONE * CHUNK_SIZE as f32 / scaling).as_uvec3();
@@ -53,6 +55,7 @@ fn remap(pos: Vec3, scaling: f32) -> UVec3 {
     temp
 }
 
+#[inline]
 pub fn get(
     image: &Image!(3D, format=r8ui, sampled=false, depth=false),
     pos: Vec3,
@@ -130,7 +133,7 @@ fn indeed(params: &GenerationParams, pos: Vec3) -> Voxel {
     let a = noise::simplex_noise_2d(pos.xz() * 0.01 + 56.123 * Vec2::ONE);
     let b = noise::simplex_noise_2d(pos.xy() * 0.01 + 12.98 * Vec2::ONE);
     let c = noise::simplex_noise_2d(pos.yz() * 0.01 - 96.48 * Vec2::ONE);
-    let test = noise::fbm_simplex_3d(pos * 0.02 * (Vec3::ONE + vec3(a, b, c)), 4, 0.4, 3.0);
+    let test = noise::fbm_simplex_3d(pos * 0.02 * (Vec3::ONE + vec3(a, b, c)) * vec3(1.0, 0.0, 1.0), 4, 0.4, 3.0);
 
     if test < -0.8 {
         sum -= 100.0;

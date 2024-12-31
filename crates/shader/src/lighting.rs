@@ -51,6 +51,8 @@ pub fn plane(origin: Vec3, ray: Vec3, normal: Vec3) -> f32 {
 
 #[inline]
 pub fn skybox(ray_start: Vec3, ray_dir: Vec3) -> Vec3 {
+    return Vec3::ZERO;
+
     let pos = ray_start;
     let dir = ray_dir;
     
