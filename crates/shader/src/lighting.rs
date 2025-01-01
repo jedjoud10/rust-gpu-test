@@ -1,5 +1,5 @@
 use shared::*;
-use crate::{voxel::{self}, RaymarchOutput, VoxelLightingData, VoxelType};
+use crate::{voxel::{self}, VoxelLightingData, VoxelType};
 
 //https://github.com/dmnsgn/glsl-tone-map/blob/main/aces.glsl
 fn aces(x: Vec3) -> Vec3 {
