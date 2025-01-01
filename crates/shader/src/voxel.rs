@@ -237,6 +237,7 @@ pub unsafe fn distance(
     // every invocation is executed for the texels of src
     //dst.write(gid, uvec4(0, 0, 0, 0));
 
+    /*
     let src_texel = src.read(id.xyz());
     
     for x in 0..2i32 {
@@ -254,5 +255,6 @@ pub unsafe fn distance(
             }
         }    
     }
+    */
     
 }

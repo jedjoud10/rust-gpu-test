@@ -1,5 +1,5 @@
 use shared::*;
-use spirv_std::{num_traits, RuntimeArray};
+use spirv_std::{arch::{all_memory_barrier, memory_barrier, workgroup_memory_barrier_with_group_sync}, num_traits, RuntimeArray};
 use crate::{lighting::{self, light, skybox}, voxel};
 
 // ok so the main "octree" optimization can work in two ways
@@ -14,14 +14,8 @@ pub unsafe fn raymarch(
     #[spirv(local_invocation_id)] lid: UVec3,
     #[spirv(descriptor_set = 0, binding = 0)] image: &Image!(2D, format=rgba8_snorm, sampled=false, depth=false),
     #[spirv(descriptor_set = 0, binding = 1)] mips: &[Image!(3D, format=r8ui, sampled=false, depth=false); MAX_MIPS as usize],
-    #[spirv(workgroup)] var: &mut u32,
     #[spirv(uniform, descriptor_set = 0, binding = 2)] constants: &RaymarchParams,
 ) {
-    if lid == UVec3::ZERO {
-        *var = 0;
-        spirv_std::arch::workgroup_memory_barrier();
-    }
-
     let mut coords = Vec2::new(id.x as f32 / constants.width, id.y as f32 / constants.height);
     coords -= 0.5f32;
     coords *= 2.0f32;
@@ -203,16 +197,139 @@ pub fn raymarch_internal2(
     };
 }
 
-pub fn trace(
+// https://tavianator.com/2011/ray_box.html
+// also gpted
+pub fn intersection(box_min: Vec3, box_max: Vec3, ray_start: Vec3, inv_dir: Vec3) -> (bool, Vec3) {
+    let tmin = (box_min - ray_start) * inv_dir;
+    let tmax = (box_max - ray_start) * inv_dir;
+
+    let t1 = tmin.min(tmax);
+    let t2 = tmin.max(tmax);
+
+    let entry = t1.x.max(t1.y.max(t1.z));
+    let exit = t2.x.min(t2.y.min(t2.z));
+
+    if (entry > exit || exit < 0.0) {
+        return (false, Vec3::ZERO);
+    }
+
+    let a = t1.cmpeq(t1.max_element() * Vec3::ONE);
+    let c = vec3(a.x as u32 as f32, a.y as u32 as f32, a.z as u32 as f32);
+
+
+    return (true, c);
+}
+
+#[derive(Default, Clone, Copy)]
+struct PendingNode(u32);
+
+// 3 first bytes used for pos, last byte used for level 
+
+impl PendingNode {
+    pub fn new(level: u32, node: UVec3) -> Self {
+        Self(level | node.x << 8 | node.y << 16 | node.z << 24)
+    }
+
+    pub fn node(&self) -> UVec3 {
+        uvec3((self.0 >> 8) & 0xFF, (self.0 >> 16) & 0xFF, (self.0 >> 24) & 0xFF)
+    }
+
+    pub fn size(&self) -> u32 {
+        1 << self.level()
+    }
+
+    pub fn level(&self) -> u32 {
+        self.0 & 0xFF
+    }
+}
+
+const OFFSETS: [UVec3; 8] = [
+    uvec3(0, 0, 0),
+    uvec3(0, 1, 0),
+    uvec3(0, 0, 1),
+    uvec3(0, 1, 1),
+    uvec3(1, 0, 0),
+    uvec3(1, 1, 0),
+    uvec3(1, 0, 1),
+    uvec3(1, 1,1),
+];
+
+use spirv_std::{arch::*, image::Image, memory::{Scope, Semantics}};
+
+pub unsafe fn trace(
     ray_start: Vec3,
     ray_dir: Vec3,
     image: &[Image!(3D, format=r8ui, sampled=false, depth=false); MAX_MIPS as usize],
 ) -> Vec3 {
-    return Vec3::ZERO;
+    let mut nodes = [PendingNode::default(); 8];
+    let mut length = 1;
+    let inv_dir = ray_dir.recip();
+    nodes[0] = PendingNode::new(MAX_MIPS-1, UVec3::ZERO);
+    const SCOPE: u32 = Scope::Workgroup as u32;
+    const SEMANTICS: u32 =  Semantics::WORKGROUP_MEMORY.bits() as u32;
+    
+    for i in 0..64 {
+        if length == 0 {
+            return Vec3::ONE * i as f32 / 32.0;
+        }
+
+        let mut closest_dist = 1000000.0;
+        let mut closest_index = 100000;
+        for x in 0..length {
+            let temp2 = nodes[x];
+
+            let dist = (temp2.node().as_vec3() + (temp2.size() / 2) as f32 * Vec3::ONE).distance(ray_start);
+            if dist < closest_dist {
+                closest_dist = dist;
+                closest_index = x;
+            }
+        }
+
+        length -= 1;
+        
+        let temp = nodes[closest_index];
+        nodes[closest_index] = nodes[length];
+        //nodes[length] = MaybeUninit::uninit();
+
+        let dist = (temp.node().as_vec3() + (temp.size() / 2) as f32 * Vec3::ONE).distance(ray_start);
+        if temp.level() == 6 {
+            //break;
+            return Vec3::ONE * dist / 100.0; 
+        }
+
+        for x in 0..8 {
+            let offset = OFFSETS[x];
+
+            let pending = PendingNode::new(temp.level() - 1, temp.node() + offset * temp.size() / 2);
+
+            let box_min = pending.node();
+            let box_max = pending.node() + pending.size() * UVec3::ONE;
+    
+            let mapped = (pending.node().as_vec3() + (pending.size() / 2) as f32 * Vec3::ONE) / pending.size() as f32;
+            let aaa = image[pending.level() as usize].read(mapped.floor().as_uvec3());
+
+            let bbb = intersection(box_min.as_vec3(), box_max.as_vec3(), ray_start, inv_dir);
+        
+            if aaa == 1 && bbb.0 {
+                nodes[length] = pending;
+                length += 1;
+            }
+        }
+
+        if (length > 8) {
+            return vec3(225.0, 52.0, 235.0) / 255.0;
+        }
+
+
+    }
+
+    control_barrier::<SCOPE, SCOPE, SEMANTICS>();
+    
+    return vec3(0.0, 1.0, 0.0);
 }
 
 
-use core::arch::asm;
+use core::{arch::asm, mem::MaybeUninit};
 #[inline]
 pub unsafe fn touch_nation(
     value: u32,
