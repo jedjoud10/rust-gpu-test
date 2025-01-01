@@ -22,6 +22,7 @@ macro_rules! asset {
 
                     $assets.insert($file, damn(env!($file)));
                     println!("Loading asset {} dynamically at runtime...", $file);
+                    println!(env!($file));
                 }
             } else {
                 let bytes = include_bytes!(env!($file));
